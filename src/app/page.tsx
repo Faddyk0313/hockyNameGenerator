@@ -6,14 +6,15 @@ import { Input } from "@/components/ui/input";
 
 export default function Home() {
   const [teamStyle, setTeamStyle] = useState("");
+  const [mascotStyle, setMascotStyle] = useState("");
   const [location, setLocation] = useState("");
+  const [color, setColor] = useState("");
   const [data, setData] = useState("");
 
   const styles = [
     "Classic",
     "Funny",
     "Aggressive",
-    "Military",
     "Weather",
     "Animal",
     "Mythical",
@@ -23,13 +24,15 @@ export default function Home() {
     "Military", "Animals", "Ocean" 
   ];
 async function handleClick(){
+  const prompt = `location:${location},color:${color},vibe:${teamStyle},mascot:${mascotStyle}`
+  console.log(prompt);
   const response = await fetch("/api/hockyNameGenerator", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      "prompt":"location:newyork,color:black,vibe:funny,mascot:animals"
+      "prompt":prompt
     }),
   });
   const data = await response.json();
@@ -67,8 +70,8 @@ async function handleClick(){
           <div className="relative">
             <select
               className="w-full border border-gray-300 rounded-md p-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              value={teamStyle}
-              onChange={(e) => setTeamStyle(e.target.value)}
+              value={mascotStyle}
+              onChange={(e) => setMascotStyle(e.target.value)}
             >
               <option value="">Select Mascot Theme</option>
               {mascot.map((style) => (
@@ -96,8 +99,8 @@ async function handleClick(){
           <Input
             type="text"
             placeholder="Enter location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
             className="w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
         </div>

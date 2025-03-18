@@ -4,7 +4,7 @@ import OpenAI  from "openai";
 
 
 
-export async function POST(req:Request,res:Response) {
+export async function POST(req:Request,res:NextResponse) {
     try{
       res.headers.set("Access-Control-Allow-Origin", "*");
       res.headers.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS");

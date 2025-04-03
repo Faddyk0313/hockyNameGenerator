@@ -15,6 +15,7 @@ export async function POST(req: Request) {
           firstname: firstName,
           lastname: lastName,
           email: email,
+          lead_source_detail: "Hockey Name Generator",
         },
       }),
     });

@@ -5,18 +5,16 @@ export async function POST(req: Request) {
     first_name, last_name, email, phone,
     address1, address2, city, province, country, zip,
     partner_type, website, tax_id, business_description
-
   } = await req.json();
 
   try {
-    const response = await fetch(
-        `https://${process.env.SHOP}/admin/api/2023-10/customers.json`,
-        method: "POST",
-        headers: {
-            "X-Shopify-Access-Token": process.env.ADMIN_TOKEN,
-            "Content-Type": "application/json"
-        },
-        body:JSON.stringify({
+    const response = await fetch(`https://${process.env.SHOP}/admin/api/2023-10/customers.json`,{
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": process.env.ADMIN_TOKEN ?? "",
+          },
+          body:JSON.stringify({
           customer: {
             first_name,
             last_name,
@@ -59,7 +57,7 @@ export async function POST(req: Request) {
             ]
           }
         })
-      );
+      });
 
     if (!response.ok) {
       const errorData = await response.json();

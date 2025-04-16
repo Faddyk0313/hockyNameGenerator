@@ -57,7 +57,7 @@ export async function POST(req: Request) {
   
 
 
-  let safeWebsite = website?.trim();
+  let safeWebsite = typeof website === "string" ? website.trim() : "";
   console.log("safeWebsite",safeWebsite)
   if (safeWebsite && !safeWebsite.startsWith("http://") && !safeWebsite.startsWith("https://")) {
     safeWebsite = "https://" + safeWebsite;

@@ -75,7 +75,8 @@ export async function POST(req: Request) {
           last_name,
           email,
           phone,
-          tags: "pending-approval",
+          tags: ["pending-approval",partner_type],
+          note:business_description,
           addresses: [{
             address1,
             address2,
@@ -109,14 +110,14 @@ export async function POST(req: Request) {
               "value": hubspotData.url,
               "type": "single_line_text_field"
             },
-            {
-              "namespace": "partner_form",
-              "key": "business_description",
-              "value": business_description,
-              "type": "multi_line_text_field"
-            }
+           
           ],
           email_marketing_consent: {
+            state: "subscribed",
+            opt_in_level: "single_opt_in",
+            consent_updated_at: new Date().toISOString()
+          },
+          sms_marketing_consent: {
             state: "subscribed",
             opt_in_level: "single_opt_in",
             consent_updated_at: new Date().toISOString()

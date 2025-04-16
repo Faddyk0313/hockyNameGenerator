@@ -46,12 +46,12 @@ export async function POST(req: Request) {
   
     if (!hubspotRes.ok) {
       console.error("❌ HubSpot File Upload Error:", hubspotData);
-      return NextResponse.json({ success: false, error: hubspotData }, { status: 500 });
+      return NextResponse.json({ success: false, message: hubspotData }, { status: 500 });
     }
   
     console.log("✅ HubSpot File uploaded:", hubspotData);
   }catch (error) {
-    return NextResponse.json({ success: false, error: "Some thing went wrong" }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Some thing went wrong" }, { status: 500 });
   }
   }
   
@@ -86,12 +86,7 @@ export async function POST(req: Request) {
             zip
           }],
           metafields: [
-            {
-              "namespace": "partner_form",
-              "key": "partner_type",
-              "value": partner_type,
-              "type": "single_line_text_field"
-            },
+           
             {
               "namespace": "partner_form",
               "key": "website",
@@ -129,12 +124,12 @@ export async function POST(req: Request) {
     if (!response.ok) {
       const errorData = await response.json();
       console.error("Error:", errorData);
-      return NextResponse.json({ success: false, error: errorData }, { status: 500 });
+      return NextResponse.json({ success: false, message: errorData }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: "Successfully created partner" }, { status: 200 });
   } catch (error) {
     console.error("Internal Error:", error);
-    return NextResponse.json({ success: false, error }, { status: 500 });
+    return NextResponse.json({ success: false, message:error }, { status: 500 });
   }
 }

@@ -64,7 +64,7 @@ const key_words = {
   
     return matched;
   }
-export async function POST(req: Request) {
+export async function GET(req: Request) {
 
   try {
     const response = await fetch(`https://judge.me/api/v1/reviews?shop_domain=${process.env.SHOP}&api_token=${process.env.JUDGE_ME_PRIVATE_API_TOKEN}&per_page=100`);

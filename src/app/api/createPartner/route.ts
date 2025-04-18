@@ -127,7 +127,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: errorData }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: "Successfully created partner" }, { status: 200 });
+    return NextResponse.json({ success: true, message: "Your application is successfully submitted, we will check your details and send you activation email soon. It can take few days" }, { status: 200 });
   } catch (error) {
     console.error("Internal Error:", error);
     return NextResponse.json({ success: false, message:error }, { status: 500 });

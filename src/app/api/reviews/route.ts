@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-
+// Cache object to store data and timestamp
+let cachedData: any = null;
+let cacheTimestamp: number = 0;
+const CACHE_DURATION = 1000 * 60 * 5; // 5 minutes
 
 const key_words = {
   "categories": [
@@ -49,44 +52,53 @@ const key_words = {
       ]
     }
   ]
+};
+
+function getMatchingCategories(text: string): string[] {
+  const matched: string[] = [];
+  const lowerText = text.toLowerCase();
+
+  for (const category of key_words.categories) {
+    if (category.keywords.some(keyword => lowerText.includes(keyword.toLowerCase()))) {
+      matched.push(category.name);
+    }
+  }
+
+  return matched;
 }
 
-
-  function getMatchingCategories(text: string): string[] {
-    const matched: string[] = [];
-    const lowerText = text.toLowerCase();
-  
-    for (const category of key_words.categories) {
-      if (category.keywords.some(keyword => lowerText.includes(keyword.toLowerCase()))) {
-        matched.push(category.name);
-      }
-    }
-  
-    return matched;
-  }
 export async function GET(req: Request) {
+  const now = Date.now();
+
+  if (cachedData && now - cacheTimestamp < CACHE_DURATION) {
+    return NextResponse.json({ success: true, groupedReviews: cachedData, message: "From cache" }, { status: 200 });
+  }
 
   try {
     const response = await fetch(`https://judge.me/api/v1/reviews?shop_domain=${process.env.SHOP}&api_token=${process.env.JUDGE_ME_PRIVATE_API_TOKEN}&per_page=100`);
     const data = await response.json();
     const reviews = data.reviews;
-     // Initialize grouped object
-     const grouped: Record<string, any[]> = {};
-     for (const category of key_words.categories) {
-       grouped[category.name] = [];
-     }
- 
-     for (const review of reviews) {
-       const combinedText = `${review.title ?? ""} ${review.body ?? ""}`;
-       const matchedCategories = getMatchingCategories(combinedText);
- 
-       for (const cat of matchedCategories) {
-         grouped[cat].push(review);
-       }
-     }
- 
-     return NextResponse.json({ success: true, groupedReviews: grouped, message: "Grouped successfully" }, { status: 200 });
- 
+
+    const grouped: Record<string, any[]> = {};
+    for (const category of key_words.categories) {
+      grouped[category.name] = [];
+    }
+
+    for (const review of reviews) {
+      const combinedText = `${review.title ?? ""} ${review.body ?? ""}`;
+      const matchedCategories = getMatchingCategories(combinedText);
+
+      for (const cat of matchedCategories) {
+        grouped[cat].push(review);
+      }
+    }
+
+    // Update cache
+    cachedData = grouped;
+    cacheTimestamp = now;
+
+    return NextResponse.json({ success: true, groupedReviews: grouped, message: "Grouped successfully" }, { status: 200 });
+
   } catch (error) {
     console.error("Internal Error:", error);
     return NextResponse.json({ success: false, data: null, message: error }, { status: 500 });

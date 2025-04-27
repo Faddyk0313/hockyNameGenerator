@@ -1,4 +1,4 @@
-// START: Webhook - Order Created (Fixed for App Router)
+// START: Webhook - Order Created with Variant Metafield Check
 
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
@@ -6,10 +6,10 @@ import crypto from 'crypto';
 const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET!;
 const ADMIN_API_TOKEN = process.env.SHOPIFY_ADMIN_API_KEY!;
 const SHOPIFY_STORE = process.env.SHOPIFY_STORE!;
-const API_VERSION = '2023-10'; // corrected API version, yours was invalid "2025-04"!
+const API_VERSION = '2023-10';
 
 export async function POST(req: Request) {
-  const rawBody = await req.text(); // 👈 Correct way to read raw body in App Router
+  const rawBody = await req.text();
   const hmacHeader = req.headers.get('x-shopify-hmac-sha256') as string;
   const verified = verifyShopifyWebhook(rawBody, hmacHeader);
 
@@ -19,35 +19,54 @@ export async function POST(req: Request) {
 
   const order = JSON.parse(rawBody);
   const orderId = order.id;
-  const preProductionTag = 'preproduction';
   let preproductionTotal = 0;
 
   for (const item of order.line_items) {
-    const tags = item?.product_exists ? item?.product_tags?.split(', ') : [];
-      console.log("tags",tags);
-    if (tags.includes(preProductionTag)) {
-      preproductionTotal += parseFloat(item.price) * item.quantity;
+    const variantId = item.variant_id;
+
+    if (!variantId) continue; // Skip if no variant
+
+    // Fetch variant metafield: custom.preproduction_note
+    const metafieldRes = await fetch(`https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/variants/${variantId}/metafields/custom/preproduction_note.json`, {
+      method: 'GET',
+      headers: {
+        'X-Shopify-Access-Token': ADMIN_API_TOKEN,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (metafieldRes.status === 200) {
+      const metafieldData = await metafieldRes.json();
+      const preproductionNote = metafieldData?.metafield?.value || '';
+
+      // Only treat it as preproduction if value is not empty
+      if (preproductionNote.trim() !== '') {
+        preproductionTotal += parseFloat(item.price) * item.quantity;
+      }
     }
   }
 
-  const remaining = preproductionTotal / 2;
+  if (preproductionTotal > 0) {
+    const remaining = preproductionTotal / 2;
 
-  const note = `Pre-Production: $${preproductionTotal.toFixed(2)} | Remaining 50% to invoice: $${remaining.toFixed(2)}`;
+    const note = `Pre-Production Total: $${preproductionTotal.toFixed(2)} | Remaining 50% to invoice: $${remaining.toFixed(2)}`;
 
-  await fetch(`https://${SHOPIFY_STORE}/admin/api/2023-10/orders/${orderId}.json`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': ADMIN_API_TOKEN,
-    },
-    body: JSON.stringify({
-      order: {
-        id: orderId,
-        note,
-        tags: [...order.tags, 'awaiting-balance'].join(', '),
+    // Update the order with the note and a tag "awaiting-balance"
+    await fetch(`https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/orders/${orderId}.json`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': ADMIN_API_TOKEN,
       },
-    }),
-  });
+      body: JSON.stringify({
+        order: {
+          id: orderId,
+          note,
+          tags: [...order.tags, 'awaiting-balance'].join(', '),
+        },
+      }),
+    });
+  }
 
   return NextResponse.json({ message: 'OK' });
 }
@@ -61,4 +80,4 @@ function verifyShopifyWebhook(rawBody: string, hmacHeader: string): boolean {
   return digest === hmacHeader;
 }
 
-// END: Webhook - Order Created (Fixed for App Router)
+// END: Webhook - Order Created with Variant Metafield Check

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
   for (const item of order.line_items) {
     const tags = item?.product_exists ? item?.product_tags?.split(', ') : [];
-
+      console.log("tags",tags);
     if (tags.includes(preProductionTag)) {
       preproductionTotal += parseFloat(item.price) * item.quantity;
     }

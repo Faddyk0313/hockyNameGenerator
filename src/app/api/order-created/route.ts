@@ -8,7 +8,7 @@ const ADMIN_API_TOKEN = process.env.SHOPIFY_ADMIN_API_KEY!;
 const SHOPIFY_STORE = process.env.SHOPIFY_STORE!;
 const API_VERSION = '2025-04';
 
-export async function GET(req: any, res: any) {
+export async function POST(req: any, res: any) {
   const hmacHeader = req.headers['x-shopify-hmac-sha256'] as string;
   const rawBody = await buffer(req);
   const verified = verifyShopifyWebhook(rawBody, hmacHeader);

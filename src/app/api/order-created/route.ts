@@ -6,7 +6,7 @@ import crypto from 'crypto';
 const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET!;
 const ADMIN_API_TOKEN = process.env.SHOPIFY_ADMIN_API_KEY!;
 const SHOPIFY_STORE = process.env.SHOPIFY_STORE!;
-const API_VERSION = '2023-10';
+const API_VERSION = '2025-04';
 
 export async function GET(req: any, res: any) {
   const hmacHeader = req.headers['x-shopify-hmac-sha256'] as string;

@@ -38,6 +38,8 @@ export async function POST(req: Request) {
     if (metafieldRes.status === 200) {
       const metafieldData = await metafieldRes.json();
       const preproductionNote = metafieldData?.metafield?.value || '';
+      
+      console.log('Variant ID:', variantId, '| Preproduction Note:', preproductionNote); // 👈 ADD THIS
 
       // Only treat it as preproduction if value is not empty
       if (preproductionNote.trim() !== '') {

@@ -1,23 +1,23 @@
-// START: Webhook - Order Created - Calculate Remaining Balance
+// START: Webhook - Order Created (Fixed for App Router)
 
-import type { NextApiRequest, NextApiResponse } from 'next';
+import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET!;
 const ADMIN_API_TOKEN = process.env.SHOPIFY_ADMIN_API_KEY!;
 const SHOPIFY_STORE = process.env.SHOPIFY_STORE!;
-const API_VERSION = '2025-04';
+const API_VERSION = '2023-10'; // corrected API version, yours was invalid "2025-04"!
 
-export async function POST(req: any, res: any) {
-  const hmacHeader = req.headers['x-shopify-hmac-sha256'] as string;
-  const rawBody = await buffer(req);
+export async function POST(req: Request) {
+  const rawBody = await req.text(); // 👈 Correct way to read raw body in App Router
+  const hmacHeader = req.headers.get('x-shopify-hmac-sha256') as string;
   const verified = verifyShopifyWebhook(rawBody, hmacHeader);
 
   if (!verified) {
-    return res.status(401).send('Unauthorized');
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const order = JSON.parse(rawBody.toString());
+  const order = JSON.parse(rawBody);
   const orderId = order.id;
   const preProductionTag = 'preproduction';
   let preproductionTotal = 0;
@@ -34,7 +34,7 @@ export async function POST(req: any, res: any) {
 
   const note = `Pre-Production: $${preproductionTotal.toFixed(2)} | Remaining 50% to invoice: $${remaining.toFixed(2)}`;
 
-  await fetch(`https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/orders/${orderId}.json`, {
+  await fetch(`https://${SHOPIFY_STORE}/admin/api/2023-10/orders/${orderId}.json`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -49,11 +49,11 @@ export async function POST(req: any, res: any) {
     }),
   });
 
-  res.status(200).send('OK');
+  return NextResponse.json({ message: 'OK' });
 }
 
 // Validate webhook HMAC
-function verifyShopifyWebhook(rawBody: Buffer, hmacHeader: string): boolean {
+function verifyShopifyWebhook(rawBody: string, hmacHeader: string): boolean {
   const digest = crypto
     .createHmac('sha256', SHOPIFY_WEBHOOK_SECRET)
     .update(rawBody)
@@ -61,19 +61,4 @@ function verifyShopifyWebhook(rawBody: Buffer, hmacHeader: string): boolean {
   return digest === hmacHeader;
 }
 
-// Needed to access raw body
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-async function buffer(req: NextApiRequest): Promise<Buffer> {
-  const chunks: Uint8Array[] = [];
-  for await (const chunk of req) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-  }
-  return Buffer.concat(chunks);
-}
-
-// END: Webhook - Order Created
+// END: Webhook - Order Created (Fixed for App Router)

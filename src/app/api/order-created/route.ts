@@ -4,8 +4,8 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET!;
-const ADMIN_API_TOKEN = process.env.ADMIN_TOKEN!;
-const SHOPIFY_STORE = process.env.SHOP!;
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN!;
+const SHOP = process.env.SHOP!;
 const API_VERSION = '2023-10';
 
 export async function POST(req: Request) {
@@ -27,10 +27,10 @@ export async function POST(req: Request) {
     if (!variantId) continue; // Skip if no variant
 
     // Fetch variant metafield: custom.preproduction_note
-    const metafieldRes = await fetch(`https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/variants/${variantId}/metafields/custom/preproduction_note.json`, {
+    const metafieldRes = await fetch(`https://${SHOP}/admin/api/${API_VERSION}/variants/${variantId}/metafields/custom/preproduction_note.json`, {
       method: 'GET',
       headers: {
-        'X-Shopify-Access-Token': ADMIN_API_TOKEN,
+        'X-Shopify-Access-Token': ADMIN_TOKEN,
         'Content-Type': 'application/json',
       },
     });
@@ -52,11 +52,11 @@ export async function POST(req: Request) {
     const note = `Pre-Production Total: $${preproductionTotal.toFixed(2)} | Remaining 50% to invoice: $${remaining.toFixed(2)}`;
 
     // Update the order with the note and a tag "awaiting-balance"
-    await fetch(`https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/orders/${orderId}.json`, {
+    await fetch(`https://${SHOP}/admin/api/${API_VERSION}/orders/${orderId}.json`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': ADMIN_API_TOKEN,
+        'X-Shopify-Access-Token': ADMIN_TOKEN,
       },
       body: JSON.stringify({
         order: {

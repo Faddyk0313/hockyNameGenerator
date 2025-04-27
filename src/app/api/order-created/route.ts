@@ -4,8 +4,8 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET!;
-const ADMIN_API_TOKEN = process.env.SHOPIFY_ADMIN_API_KEY!;
-const SHOPIFY_STORE = process.env.SHOPIFY_STORE!;
+const ADMIN_API_TOKEN = process.env.ADMIN_TOKEN!;
+const SHOPIFY_STORE = process.env.SHOP!;
 const API_VERSION = '2023-10';
 
 export async function POST(req: Request) {

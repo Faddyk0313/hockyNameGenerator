@@ -3,15 +3,15 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET!;
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN!;
-const SHOP = process.env.SHOP!;
-const API_VERSION = '2023-10';
+const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET_DEV!;
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN_DEV!;
+const SHOP = process.env.SHOP_DEV!;
+const API_VERSION = '2025-04';
 
 export async function POST(req: Request) {
   try{
 
-  const order = await req.json()
+  const {order} = await req.json()
   console.log('Order Created Webhook:', order);
   const orderId = order.id;
   let preproductionTotal = 0;

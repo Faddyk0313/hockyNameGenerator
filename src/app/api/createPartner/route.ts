@@ -143,6 +143,7 @@ export async function POST(req: Request) {
           tax_id__abn__or_vat_number:tax_id,
           message:business_description,
           tax_document:hubspotData.id,
+          customer_type:"Retail"
         },
       }),
     });

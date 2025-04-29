@@ -38,7 +38,8 @@ export async function POST(req: Request) {
     });
     
     const customerData = await customerRes.json();
-    const customerTags = customerData.customer?.tags || '';
+    let customerTags = customerData.customer?.tags || '';
+    customerTags = customerTags.toLowerCase()
     const isWholesale = customerTags.includes('wholesale-bronze') || 
     customerTags.includes('wholesale-silver') || 
     customerTags.includes('wholesale-gold');

@@ -19,9 +19,33 @@ export async function POST(req: Request) {
   }
 
   
-  const order = JSON.parse(rawBody);
-    console.log('✅ Order Created Webhook:', order);
 
+
+
+  
+  const order = JSON.parse(rawBody);
+    // console.log('✅ Order Created Webhook:', order);
+
+
+    const customerId = order.customer?.id;
+
+    const customerRes = await fetch(`https://${SHOP}/admin/api/${API_VERSION}/customers/${customerId}.json`, {
+      method: 'GET',
+      headers: {
+        'X-Shopify-Access-Token': ADMIN_TOKEN,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    const customerData = await customerRes.json();
+    const customerTags = customerData.customer?.tags || '';
+    const isWholesale = customerTags.includes('wholesale-bronze') || 
+    customerTags.includes('wholesale-silver') || 
+    customerTags.includes('wholesale-gold');
+    console.log("isWholesale",isWholesale)
+    if (!isWholesale) {
+      return NextResponse.json({ message:"customer is not wholesale customer" }, { status: 200 });
+    }
     const orderId = order.id;
     let totalAmount = 0;
 

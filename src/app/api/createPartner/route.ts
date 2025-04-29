@@ -148,6 +148,8 @@ export async function POST(req: Request) {
     });
 
     if (!hubspotRes.ok) {
+      const errorData = await hubspotRes.json();
+      console.error("HubSpot Error:", errorData);
     }
 
     if (!response.ok) {

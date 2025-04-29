@@ -19,8 +19,8 @@ export async function POST(req: Request) {
   }
 
   
-    const order = await req.json();
-    console.log('Order Created Webhook:', order);
+  const order = JSON.parse(rawBody);
+    console.log('✅ Order Created Webhook:', order);
 
     const orderId = order.id;
     let totalAmount = 0;

@@ -11,9 +11,8 @@ const API_VERSION = '2025-04';
 export async function POST(req: Request) {
   try{
 
-    const data = await req.json();
-    console.log('Order Created Webhook:', data);
-    const order = data
+    const order = await req.json();
+    console.log('Order Created Webhook:', order);
   const orderId = order.id;
   let preproductionTotal = 0;
 

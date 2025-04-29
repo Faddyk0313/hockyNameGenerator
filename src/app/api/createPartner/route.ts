@@ -121,6 +121,35 @@ export async function POST(req: Request) {
       })
     });
 
+
+    const hubspotRes = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        properties: {
+          firstname:first_name,
+          lastname:last_name,
+          email,
+          phone,
+          address:address1+" "+address2,
+          city,
+          state:province,
+          zip,
+          country,
+          website:safeWebsite,
+          tax_id__abn__or_vat_number:tax_id,
+          message:business_description,
+          tax_document:hubspotData.id,
+        },
+      }),
+    });
+
+    if (!hubspotRes.ok) {
+    }
+
     if (!response.ok) {
       const errorData = await response.json();
       console.error("Error:", errorData);

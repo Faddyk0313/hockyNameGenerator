@@ -43,6 +43,7 @@ export async function POST(req: Request) {
       }
     }
   }
+  console.log('preproductionTotal:', preproductionTotal); // 👈 ADD THIS
 
   if (preproductionTotal > 0) {
     const remaining = preproductionTotal / 2;

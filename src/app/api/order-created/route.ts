@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
     const data = await req.json();
     console.log('Order Created Webhook:', data);
-    const order = data.order;
+    const order = data
   const orderId = order.id;
   let preproductionTotal = 0;
 

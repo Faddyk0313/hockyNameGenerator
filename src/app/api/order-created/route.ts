@@ -9,15 +9,10 @@ const SHOP = process.env.SHOP!;
 const API_VERSION = '2023-10';
 
 export async function POST(req: Request) {
-  const rawBody = await req.text();
-  const hmacHeader = req.headers.get('x-shopify-hmac-sha256') as string;
-  const verified = verifyShopifyWebhook(rawBody, hmacHeader);
+  try{
 
-  if (!verified) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const order = JSON.parse(rawBody);
+  const order = await req.json()
+  console.log('Order Created Webhook:', order);
   const orderId = order.id;
   let preproductionTotal = 0;
 
@@ -71,6 +66,10 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ message: 'OK' });
+}catch (error) {
+  return NextResponse.json({ error }, { status: 500 });
+
+}
 }
 
 // Validate webhook HMAC

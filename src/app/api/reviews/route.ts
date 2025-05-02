@@ -7,6 +7,16 @@ const CACHE_DURATION = 1000 * 60 * 5; // 5 minutes
 
 const key_words = {
   "categories": [
+
+    {
+      "name": "What customers say about caring for your Titan",
+      "keywords": [
+        "laundry", "launder", "care", "wash", "hold up", "clean", "stain", "odor", "air dry", "hang dry", "dryer", "shrink", 
+        "durability", "durable", "lasts", "wear and tear", "over time", "looks new", "like new", "maintain", "maintenance",
+         "upkeep", "spot clean", "quality", "built to last", "stays strong", "holds shape", "premium", "elite", "pro",
+          "well made", "construction", "materials", "top-notch", "superior", "fabric", "next-level"
+      ]
+    },
     {
       "name": "Comfort & Fit",
       "keywords": [

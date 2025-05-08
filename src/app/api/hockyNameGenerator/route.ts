@@ -23,7 +23,7 @@ export async function POST(req:Request) {
           model: "gpt-4o",
           store: true,
           messages: [
-              {"role": "user", "content": 
+              {"role": "system", "content": 
                 `
                 You are a creative AI assistant specialized in generating authentic, engaging, and relevant hockey team names. Generate exactly 9 team names based on the following user input:
 

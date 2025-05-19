@@ -1,0 +1,15 @@
+name: Trigger Vercel Order Window Function
+
+on:
+  schedule:
+    - cron: '0 5 * * *'  # Runs every day at 5:00 AM UTC
+  workflow_dispatch:      # Also allows manual run from GitHub UI
+
+jobs:
+  call-vercel-function:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call Vercel Serverless Function
+        run: |
+          curl -s -X GET "https://hocky-name-generator-seven.vercel.app/api/updateInventoryPolicy"

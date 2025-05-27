@@ -25,7 +25,7 @@ export async function POST(req: Request) {
         {
           role: "system",
           content: `
-You are a classifier.  Return exactly one word: Shipping, Return, Billing, Product, Other.
+You are a classifier.  Return exactly one word: Shipping, Return, Billing, Product.
           `,
         },
         { role: "user", content: `${subject}\n\n${latest_comment}` },

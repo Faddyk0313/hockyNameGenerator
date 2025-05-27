@@ -7,24 +7,24 @@ export async function GET(req: Request) {
   try{
   const now = new Date();
 
-  let products = await fetch(`https://${SHOPIFY_STORE}/admin/api/2023-10/products.json?limit=250`, {
+  const productsRes = await fetch(`https://${SHOPIFY_STORE}/admin/api/2023-10/products.json?limit=250`, {
         headers: {
           'X-Shopify-Access-Token': ACCESS_TOKEN,
           'Content-Type': 'application/json',
         },
   });
-       products = await products.json();
+       const products = await productsRes.json();
 
   for (const product of products.products) {
     for (const variant of product.variants) {
       // Get metafields
-      let metafields = await fetch(
+      const metafieldsRes = await fetch(
         `https://${SHOPIFY_STORE}/admin/api/2023-10/products/${product.id}/metafields.json`,
         { headers: { "X-Shopify-Access-Token": ACCESS_TOKEN } }
       );
-      metafields = await metafields.json();
-      const start = metafields.metafields.find((m) => m.key === "order_window_start");
-      const end = metafields.metafields.find((m) => m.key === "order_window_end");
+      const metafields = await metafieldsRes.json();
+      const start = metafields.metafields.find((m:any) => m.key === "order_window_start");
+      const end = metafields.metafields.find((m:any) => m.key === "order_window_end");
       if (!start || !end) continue;
       console.log("start",start)
       console.log("end",end)
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
         inventory_policy = "continue";
       }
 
-      let res = await fetch(
+      const shopifyRes = await fetch(
         `https://${SHOPIFY_STORE}/admin/api/2023-10/variants/${variant.id}.json`,
        
         {         
@@ -54,7 +54,7 @@ export async function GET(req: Request) {
           })
         }
       );
-      res = await res.json();
+      const res = await shopifyRes.json();
       if (res.errors) {
         console.log(res.errors);
         continue;

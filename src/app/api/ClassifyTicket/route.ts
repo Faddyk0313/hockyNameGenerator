@@ -31,8 +31,17 @@ You are a classifier.  Return exactly one word: Shipping, Return, Billing, Produ
       ],
     });
 
-    const topic = completion.choices[0].message.content.trim(); // e.g. "Shipping"
-    const tag = topic.toLowerCase();                           // "shipping"
+    const content = completion.choices[0].message.content;
+
+    if (!content) {
+  return NextResponse.json(
+    { error: "No classification returned from OpenAI." },
+    { status: 500 }
+  );
+}
+
+const topic = content.trim();
+const tag = topic.toLowerCase();                      // "shipping"
 
     // 3️⃣ Prepare Zendesk creds & URL
     const subdomain     = process.env.ZENDESK_SUBDOMAIN!;

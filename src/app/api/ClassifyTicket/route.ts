@@ -4,6 +4,7 @@ import OpenAI from "openai";
 export async function POST(req: Request) {
   try {
     const data = await req.json();
+    console.log("data",data)
     const { ticket_id, subject, latest_comment } = data;
 
     // 1️⃣ Validate input

@@ -11,6 +11,12 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+  if (typeof team !== "string" || !team.trim()) {
+    return NextResponse.json(
+      { success: false, message: { errors: { team: ["is required"] } } },
+      { status: 400 }
+    );
+  }
 
   const cleanEmail = email.trim();
   const cleanTeam  = team.trim();

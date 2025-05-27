@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export async function POST(req: Request) {
   const formData = await req.formData();
   const email = formData.get("email");
-
+  const team  = formData.get("team");
   // 1. Validate
   if (typeof email !== "string" || !email.trim()) {
     return NextResponse.json(
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   }
 
   const cleanEmail = email.trim();
-
+  const cleanTeam  = team.trim();
   try {
     // 2. Create (or update) Shopify customer with only email
     const shopifyRes = await fetch(

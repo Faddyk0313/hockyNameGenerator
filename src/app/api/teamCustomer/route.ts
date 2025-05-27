@@ -27,6 +27,7 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           customer: {
             email: cleanEmail,
+            tags: [`team-${cleanTeam}`],   // ← tag by product.handle
           },
         }),
       }

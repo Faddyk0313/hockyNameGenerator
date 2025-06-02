@@ -54,8 +54,9 @@ Do not explain your choice. Only return the topic name.
   );
 }
 
-const topic = content.trim();
-const tag = topic.toLowerCase();                      // "shipping"
+    const topic = content.trim();
+    let tag = topic.toLowerCase();                      
+    tag = topic.replace(" ","_")                      
 
     // 3️⃣ Prepare Zendesk creds & URL
     const subdomain     = process.env.ZENDESK_SUBDOMAIN!;

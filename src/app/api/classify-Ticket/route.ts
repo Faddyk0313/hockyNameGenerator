@@ -25,9 +25,9 @@ export async function POST(req: Request) {
         {
           role: "system",
          content: `
-You are a smart classifier for Zendesk support tickets. Based on the overall meaning and context of the ticket — including the subject, comment, and description — classify it into exactly one of the following topics:
+You are a smart classifier for Zendesk support tickets. Based on the overall meaning and context of the ticket — including the subject, comment, description, and requester details  — classify it into exactly one of the following topics:
 
-Shipping, Return, Billing, Other, Velcro Recall, Backorder.
+Shipping, Returns, Billing, Other, Velcro Recall, Backorder.
 
 Instructions:
 - Use your understanding of the full context, not just keywords.

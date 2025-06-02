@@ -5,12 +5,12 @@ export async function POST(req: Request) {
   try {
     const data = await req.json();
     console.log("data",data)
-    const { ticket_id, subject, latest_comment, ticket_description } = data;
+    const { ticket_id, subject, latest_comment, ticket_description, ticket_requester_details } = data;
 
     // 1️⃣ Validate input
-    if (!ticket_id || !subject || !latest_comment || !ticket_description) {
+    if (!ticket_id ) {
       return NextResponse.json(
-        { error: "Missing required fields: ticket_id, subject, latest_comment" },
+        { error: "Missing required fields: ticket_id" },
         { status: 400 }
       );
     }
@@ -24,11 +24,24 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: `
-You are a classifier.  Return exactly one word: Shipping, Return, Billing, Web Widget, Direct Message, Other, Velcro Recall, Backorder.
-          `,
+         content: `
+You are a smart classifier for Zendesk support tickets. Based on the overall meaning and context of the ticket — including the subject, comment, and description — classify it into exactly one of the following topics:
+
+Shipping, Return, Billing, Other, Velcro Recall, Backorder.
+
+Instructions:
+- Use your understanding of the full context, not just keywords.
+- If the ticket is clearly about Velcro issues or product recalls, return: Velcro Recall.
+- If it discusses inventory issues, delays due to restocking, or mentions being out of stock, return: Backorder.
+- If it clearly relates to product shipping, returns, or billing — classify accordingly.
+- If none of the above apply, or the issue is unrelated or unclear, return: Other.
+
+Return ONLY one of these: Shipping, Return, Billing, Other, Velcro Recall, Backorder.
+Do not explain your choice. Only return the topic name.
+`
+
         },
-        { role: "user", content: `${subject}\n\n${latest_comment}\n\n${ticket_description}` },
+        { role: "user", content: `${subject}\n\n${latest_comment}\n\n${ticket_description}\n\n${ticket_requester_details}` },
       ],
     });
 

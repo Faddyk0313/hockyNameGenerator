@@ -5,10 +5,10 @@ export async function POST(req: Request) {
   try {
     const data = await req.json();
     console.log("data",data)
-    const { ticket_id, subject, latest_comment } = data;
+    const { ticket_id, subject, latest_comment, ticket_description } = data;
 
     // 1️⃣ Validate input
-    if (!ticket_id || !subject || !latest_comment) {
+    if (!ticket_id || !subject || !latest_comment || !ticket_description) {
       return NextResponse.json(
         { error: "Missing required fields: ticket_id, subject, latest_comment" },
         { status: 400 }
@@ -25,10 +25,10 @@ export async function POST(req: Request) {
         {
           role: "system",
           content: `
-You are a classifier.  Return exactly one word: Shipping, Return, Billing, Product.
+You are a classifier.  Return exactly one word: Shipping, Return, Billing, Web Widget, Direct Message, Other, Velcro Recall, Backorder.
           `,
         },
-        { role: "user", content: `${subject}\n\n${latest_comment}` },
+        { role: "user", content: `${subject}\n\n${latest_comment}\n\n${ticket_description}` },
       ],
     });
 

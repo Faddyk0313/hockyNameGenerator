@@ -57,9 +57,10 @@ async function updateCustomerTags(id: number, newTag: string) {
 }
 
 export async function POST(req: Request) {
-  const formData = await req.formData();
-  const email = formData.get("email");
-  const team  = formData.get("team");
+          const data = await req.json();
+  
+  const email = data.email
+  const team  = data.team
 
   // 1) Validate
   if (typeof email !== "string" || !email.trim()) {

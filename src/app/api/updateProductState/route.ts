@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 
 
+import crypto from "crypto";
 
 const SHOPIFY_STORE = process.env.SHOP!;           
 const ACCESS_TOKEN = process.env.ADMIN_TOKEN!;    
@@ -121,11 +122,23 @@ async function updateVariantPolicy(variantId:string, policy:string) {
 
 export async function POST(req: Request) {
     // 1) Read config array from UI
-    const { config } = await req.json();
+    const { config,password } = await req.json();
     if (!Array.isArray(config)) {
         return NextResponse.json({ error: "Missing or invalid `config` array" }, { status: 400 });
     }
+    if(password == ""){
+        
+        return NextResponse.json({ error: "please provide" }, { status: 400 });
+    }
 
+ const incomingHash = crypto
+    .createHash("sha256")
+    .update(password)
+    .digest("hex");
+
+  if (incomingHash !== process.env.PASSWORD_HASH) {
+        return NextResponse.json({ error: "Invalid Password" }, { status: 400 });
+  }
     // Build a lookup map: stateKey → { label?, policy }
   const stateMap: Record<string, { label?: string; policy: string }> = {};
     for (const row of config) {
@@ -192,4 +205,3 @@ export async function POST(req: Request) {
     }
 }
 
-// added dynamic `config` handling: reads config from POST body and drives label + policy logic per-product  

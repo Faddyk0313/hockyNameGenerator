@@ -3,6 +3,7 @@ import { useState } from "react";
 export default function Home() {
   // Local state for rows of config
   const [rows, setRows] = useState<StateRow[]>([]);
+  const [password, setPassword] = useState<string>("");
 
  // Define the shape of a state row
 interface StateRow {
@@ -29,10 +30,14 @@ interface StateRow {
   // Trigger the sync script on-demand
   const runSync = async () => {
  try {
+  if(password == ""){
+    alert("please provide password")
+    return
+  }
   console.log("raw",rows)
    const res = await fetch("/api/updateProductState", {
      method: "POST",
-      body: JSON.stringify({ config: rows }),
+      body: JSON.stringify({ config: rows,password }),
        headers: {
         "Content-Type": "application/json",
       },
@@ -120,6 +125,12 @@ interface StateRow {
         >
           Run Sync
         </button>
+        <input
+          className="px-4 py-2 bg-white-500 black-white rounded border p-2"
+          placeholder="password"
+          type="password"
+          onChange={(e)=>setPassword(e.target.value)}
+        />
       </div>
     </div>
   );

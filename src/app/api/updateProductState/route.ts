@@ -2,186 +2,195 @@
 
 import { NextResponse } from "next/server";
 
-/**
- * Next.js API route to:
- *  • Read each product’s “state” metafield
- *  • Upsert a product-level “add to cart” label metafield
- *  • Toggle each variant’s inventory policy (allow oversell vs. sold-out)
- */
 
-const SHOPIFY_STORE   = process.env.SHOP;      // e.g. "42ddef-3.myshopify.com"
-const ACCESS_TOKEN    = process.env.ADMIN_TOKEN; 
-const API_VERSION     = "2023-01";
 
-// Metafield definitions (product-level)
+const SHOPIFY_STORE = process.env.SHOP;           // “42ddef-3.myshopify.com”
+const ACCESS_TOKEN = process.env.ADMIN_TOKEN;    // “shpat_xxx”
+const API_VERSION = "2023-01";
+
 const STATE_NAMESPACE = "custom";
-const STATE_KEY       = "product_state";
+const STATE_KEY = "product_state";
 
 const LABEL_NAMESPACE = "custom";
-const LABEL_KEY       = "add_to_cart_button_label";
-
-// Mapping: state → button text
-const LABELS = {
-  preorder:  "Preorder today",
-  current:   "Backorder today",
-  carryover: "Backorder today",
-};
+const LABEL_KEY = "add_to_cart_button_label";
 
 const HEADERS = {
-  "X-Shopify-Access-Token": ACCESS_TOKEN,
-  "Content-Type": "application/json",
+    "X-Shopify-Access-Token": ACCESS_TOKEN,
+    "Content-Type": "application/json",
 };
 
+// Utility: pause to avoid rate limits
+async function pause(ms = 200) {
+    return new Promise(res => setTimeout(res, ms));
+}
 
-// Fetch every product, 250 at a time
+// Fetch all ACTIVE products, paginated
 async function getAllProducts() {
-  let products = [];
-  let sinceId;
-  while (true) {
-let url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/products.json?status=active&limit=250`;
-    if (sinceId) url += `&since_id=${sinceId}`;
-    const res = await fetch(url, { headers: HEADERS });
-    if (!res.ok) throw new Error(`Fetch products failed: ${res.statusText}`);
-    const batch = (await res.json()).products;
-    if (batch.length === 0) break;
-    products = products.concat(batch);
-    sinceId = batch[batch.length - 1].id;
-    if (batch.length < 250) break;
-  }
-  return products;
-}
-
-// Get metafields for a product filtered by namespace + key
-async function getProductMetafields(productId:string, namespace:string, key:string) {
-  const url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}`
-            + `/products/${productId}/metafields.json`
-            + `?namespace=${namespace}&key=${key}`;
-  const res = await fetch(url, { headers: HEADERS });
-  if (!res.ok) {
-    console.error(`Error fetching metafields for ${productId}:`, await res.text());
-    return [];
-  }
-  return (await res.json()).metafields;
-}
-
-// Create or update a product-level metafield
-async function upsertProductMetafield(productId:string, namespace:string, key:string, value:string) {
-  const existing = await getProductMetafields(productId, namespace, key);
-  const payload = {
-    metafield: {
-      namespace,
-      key,
-      value,
-      type: "single_line_text_field",
-      owner_id: productId,
-      owner_resource: "product"
+    let products = [];
+    let sinceId;
+    while (true) {
+        let url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/products.json?status=active&limit=250`;
+        if (sinceId) url += `&since_id=${sinceId}`;
+        const resp = await fetch(url, { headers: HEADERS });
+        if (!resp.ok) throw new Error(`Fetch products failed: ${resp.statusText}`);
+        const batch = (await resp.json()).products;
+        if (batch.length === 0) break;
+        products = products.concat(batch);
+        sinceId = batch[batch.length - 1].id;
+        await pause();
+        if (batch.length < 250) break;
     }
-  };
-  let url, method;
-  if (existing.length) {
-    url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/metafields/${existing[0].id}.json`;
-    method = "PUT";
-  } else {
-    url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/metafields.json`;
-    method = "POST";
-  }
-  const res = await fetch(url, {
-    method,
-    headers: HEADERS,
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) {
-    console.error(`${method} metafield failed for ${productId}:`, await res.text());
-  } else {
-    console.log(`✅ ${method} ${namespace}.${key} on product ${productId}`);
-  }
+    return products;
 }
 
-// Delete a metafield by ID
-async function deleteMetafield(metafieldId:string) {
-  const url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/metafields/${metafieldId}.json`;
-  const res = await fetch(url, { method: "DELETE", headers: HEADERS });
-  if (!res.ok) console.error(`❌ Delete metafield ${metafieldId} failed:`, await res.text());
-  else console.log(`🗑️ Deleted metafield ${metafieldId}`);
+// Get product-level metafields by namespace+key
+async function getProductMetafields(productId, namespace, key) {
+    const url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}`
+        + `/products/${productId}/metafields.json`
+        + `?namespace=${namespace}&key=${key}`;
+    const resp = await fetch(url, { headers: HEADERS });
+    if (!resp.ok) {
+        console.error(`Error fetching metafields for ${productId}:`, await resp.text());
+        return [];
+    }
+    await pause(100);
+    return (await resp.json()).metafields;
 }
 
-// Update a variant’s inventory_policy
-async function updateVariantPolicy(variantId:string, policy:string) {
-  const url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/variants/${variantId}.json`;
-  const body = { variant: { id: variantId, inventory_policy: policy } };
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: HEADERS,
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) console.error(`❌ Update variant ${variantId} failed:`, await res.text());
-  else console.log(`🔄 Set variant ${variantId} policy → ${policy}`);
+// Upsert (create or update) a product-level metafield
+async function upsertProductMetafield(productId, namespace, key, value) {
+    const existing = await getProductMetafields(productId, namespace, key);
+    const payload = {
+        metafield: {
+            namespace,
+            key,
+            value,
+            type: "single_line_text_field",
+            owner_id: productId,
+            owner_resource: "product",
+        }
+    };
+    let url, method;
+    if (existing.length) {
+        url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/metafields/${existing[0].id}.json`;
+        method = "PUT";
+    } else {
+        url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/metafields.json`;
+        method = "POST";
+    }
+    const res = await fetch(url, {
+        method,
+        headers: HEADERS,
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        console.error(`${method} metafield failed for product ${productId}:`, await res.text());
+    } else {
+        console.log(`✅ ${method} ${namespace}.${key} on product ${productId}`);
+    }
+    await pause();
 }
 
-// The actual API handler
+// Delete a metafield by its ID
+async function deleteMetafield(mfId) {
+    const url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/metafields/${mfId}.json`;
+    const res = await fetch(url, { method: "DELETE", headers: HEADERS });
+    if (!res.ok) {
+        console.error(`❌ Failed deleting metafield ${mfId}:`, await res.text());
+    } else {
+        console.log(`🗑️ Deleted metafield ${mfId}`);
+    }
+    await pause(100);
+}
+
+// Update variant inventory_policy
+async function updateVariantPolicy(variantId, policy) {
+    const url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/variants/${variantId}.json`;
+    const body = { variant: { id: variantId, inventory_policy: policy } };
+    const res = await fetch(url, {
+        method: "PUT",
+        headers: HEADERS,
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+        console.error(`❌ Failed updating variant ${variantId}:`, await res.text());
+    } else {
+        console.log(`🔄 Variant ${variantId} policy → ${policy}`);
+    }
+    await pause();
+}
+
 export async function POST(req: Request) {
-    
-    /**
-     * data = {
-     config:[ 
-    {key: 'exiting', label: '', policy: 'deny'}
-    {key: 'preorder', label: 'preorder today', policy: 'continue'}
-    ]
-    }
-    */
-    const data = await req.json();
-
-  try {
-    const products = await getAllProducts();
-    console.log(`→ Found ${products.length} products\n`);
-
-    for (const prod of products) {
-      const pid = prod.id;
-      console.log(`🏷 Product ${pid}: ${prod.title}`);
-
-      // Read “state” metafield
-      const stateMfs = await getProductMetafields(pid, STATE_NAMESPACE, STATE_KEY);
-      console.log("stateMfs",stateMfs)
-      const state = stateMfs[0]?.value?.trim().toLowerCase() || "";
-      console.log(`  • State = '${state || "– unset –"}'`);
-
-      // Find existing label metafield
-      const labelMfs = await getProductMetafields(pid, LABEL_NAMESPACE, LABEL_KEY);
-      const labelId  = labelMfs[0]?.id;
-
-      // All variant IDs
-      const variantIds = prod.variants.map(v => v.id);
-
-      if (["preorder","current","carryover"].includes(state)) {
-        // upsert label + allow oversell
-        await upsertProductMetafield(pid, LABEL_NAMESPACE, LABEL_KEY, LABELS[state]);
-        for (const vid of variantIds) {
-          await updateVariantPolicy(vid, "continue");
-        }
-
-      } else if (state === "exiting") {
-        // disable oversell, keep native sold-out
-        console.log("  • Exiting: disabling oversell");
-        for (const vid of variantIds) {
-          await updateVariantPolicy(vid, "deny");
-        }
-
-      } else {
-        // reset to default
-        console.log("  • No state: deleting label + disabling oversell");
-        if (labelId) await deleteMetafield(labelId);
-        for (const vid of variantIds) {
-          await updateVariantPolicy(vid, "deny");
-        }
-      }
-
-    //   console.log(""); // spacer
+    // 1) Read config array from UI
+    const { config } = await req.json();
+    if (!Array.isArray(config)) {
+        return NextResponse.json({ error: "Missing or invalid `config` array" }, { status: 400 });
     }
 
-    console.log("🎉 Sync complete!");
-  return NextResponse.json({ message: 'OK' });
-  } catch (error) {
-       return NextResponse.json({ error: error instanceof Error ? error.message : error }, { status: 500 });
+    // Build a lookup map: stateKey → { label?, policy }
+    const stateMap = {};
+    for (const row of config) {
+        if (!row.key || !row.policy) continue;
+        stateMap[row.key.trim().toLowerCase()] = {
+            label: row.label?.trim(),
+            policy: row.policy.trim().toLowerCase()
+        };
+    }
 
-  }
+    try {
+        // 2) Fetch all active products
+        const products = await getAllProducts();
+        console.log(`→ Found ${products.length} active products`);
+
+        // 3) Loop & apply config
+        for (const prod of products) {
+            const pid = prod.id;
+            console.log(`🏷 Product ${pid} (${prod.title})`);
+
+            // Read its state
+            const mfs = await getProductMetafields(pid, STATE_NAMESPACE, STATE_KEY);
+            const state = mfs[0]?.value?.trim().toLowerCase() || "";
+            console.log(`  • State = '${state || "<unset>"}'`);
+
+            // Lookup in our dynamic config
+            const mapping = stateMap[state];
+            // SKIP any product without a filled state OR without a mapping
+            if (!state || !mapping) {
+                console.log(`  • Skipping ${pid}: no state or no mapping`);
+                continue;
+            }
+            // Find existing label MF ID (if any)
+            const labelMfs = await getProductMetafields(pid, LABEL_NAMESPACE, LABEL_KEY);
+            const existingLabelId = labelMfs[0]?.id;
+
+            // Variant IDs
+            const variantIds = prod.variants.map(v => v.id);
+
+            // 3a) If mapping.label exists, upsert it
+            if (mapping.label) {
+                await upsertProductMetafield(pid, LABEL_NAMESPACE, LABEL_KEY, mapping.label);
+            } else if (existingLabelId) {
+                console.log(`  • Removing label for ${pid}`);
+                await deleteMetafield(existingLabelId);
+            }
+            // 3b) Apply inventory policy to each variant
+            for (const vid of variantIds) {
+                await updateVariantPolicy(vid, mapping.policy);
+            }
+
+
+        }
+
+        console.log("🎉 Dynamic sync complete!");
+        return NextResponse.json({ message: "Sync finished successfully" });
+
+    } catch (err) {
+        console.error("Unhandled error in sync:", err);
+        return NextResponse.json(
+            { error: err instanceof Error ? err.message : String(err) },
+            { status: 500 }
+        );
+    }
 }
+
+// added dynamic `config` handling: reads config from POST body and drives label + policy logic per-product  

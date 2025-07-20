@@ -21,12 +21,12 @@ export default function Home() {
   const runSync = async () => {
  try {
   console.log("raw",rows)
-  return
    const res = await fetch("/api/updateProductState", {
      method: "POST",
-     body: {
-
-     }, 
+      body: JSON.stringify({ config: rows }),
+       headers: {
+        "Content-Type": "application/json",
+      },
    });
    const data = await res.json();
    if (res.ok) {

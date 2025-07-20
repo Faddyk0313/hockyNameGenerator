@@ -2,11 +2,20 @@
 import { useState } from "react";
 export default function Home() {
   // Local state for rows of config
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState<StateRow[]>([]);
 
- 
+ // Define the shape of a state row
+interface StateRow {
+  key: string;
+  label: string;
+  policy: string;
+}
+
   // Handle changes to a single cell
-  const handleRowChange = (index, field, value) => {
+  const handleRowChange = (
+  index: number,
+    field: keyof StateRow,
+    value: string  ) => {
     const newRows = [...rows];
     newRows[index] = { ...newRows[index], [field]: value };
     setRows(newRows);

@@ -1,11 +1,10 @@
-// pages/api/run-sync.js
 
 import { NextResponse } from "next/server";
 
 
 
-const SHOPIFY_STORE = process.env.SHOP;           // “42ddef-3.myshopify.com”
-const ACCESS_TOKEN = process.env.ADMIN_TOKEN;    // “shpat_xxx”
+const SHOPIFY_STORE = process.env.SHOP!;           
+const ACCESS_TOKEN = process.env.ADMIN_TOKEN!;    
 const API_VERSION = "2023-01";
 
 const STATE_NAMESPACE = "custom";
@@ -25,8 +24,8 @@ async function pause(ms = 200) {
 }
 
 // Fetch all ACTIVE products, paginated
-async function getAllProducts() {
-    let products = [];
+async function getAllProducts() :Promise<any[]> {
+    let products  :any[]= [];
     let sinceId;
     while (true) {
         let url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/products.json?status=active&limit=250`;
@@ -44,7 +43,7 @@ async function getAllProducts() {
 }
 
 // Get product-level metafields by namespace+key
-async function getProductMetafields(productId, namespace, key) {
+async function getProductMetafields(productId:string, namespace:string, key:string) {
     const url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}`
         + `/products/${productId}/metafields.json`
         + `?namespace=${namespace}&key=${key}`;
@@ -58,7 +57,7 @@ async function getProductMetafields(productId, namespace, key) {
 }
 
 // Upsert (create or update) a product-level metafield
-async function upsertProductMetafield(productId, namespace, key, value) {
+async function upsertProductMetafield(productId:string, namespace:string, key:string, value:string) {
     const existing = await getProductMetafields(productId, namespace, key);
     const payload = {
         metafield: {
@@ -92,7 +91,7 @@ async function upsertProductMetafield(productId, namespace, key, value) {
 }
 
 // Delete a metafield by its ID
-async function deleteMetafield(mfId) {
+async function deleteMetafield(mfId:string) {
     const url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/metafields/${mfId}.json`;
     const res = await fetch(url, { method: "DELETE", headers: HEADERS });
     if (!res.ok) {
@@ -104,7 +103,7 @@ async function deleteMetafield(mfId) {
 }
 
 // Update variant inventory_policy
-async function updateVariantPolicy(variantId, policy) {
+async function updateVariantPolicy(variantId:string, policy:string) {
     const url = `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/variants/${variantId}.json`;
     const body = { variant: { id: variantId, inventory_policy: policy } };
     const res = await fetch(url, {
@@ -128,7 +127,7 @@ export async function POST(req: Request) {
     }
 
     // Build a lookup map: stateKey → { label?, policy }
-    const stateMap = {};
+  const stateMap: Record<string, { label?: string; policy: string }> = {};
     for (const row of config) {
         if (!row.key || !row.policy) continue;
         stateMap[row.key.trim().toLowerCase()] = {
@@ -164,7 +163,7 @@ export async function POST(req: Request) {
             const existingLabelId = labelMfs[0]?.id;
 
             // Variant IDs
-            const variantIds = prod.variants.map(v => v.id);
+            const variantIds = prod.variants.map((v:any) => v.id);
 
             // 3a) If mapping.label exists, upsert it
             if (mapping.label) {

@@ -23,17 +23,11 @@ const HEADERS = {
 };
 
 
-// 1️⃣ background config
-export const config = {
-  runtime: 'nodejs',
-  background: true,
-};
-
 
 
 // Utility: pause to avoid rate limits
-async function pause(ms = 200) {
-  return new Promise((r) => setTimeout(r, ms));
+async function pause(ms = 100) { 
+  return new Promise(r => setTimeout(r, ms)); 
 }
 
 // Fetch all ACTIVE products, paginated
@@ -173,7 +167,8 @@ export async function POST(req: Request) {
     console.log(`→ Found ${products.length} active products`);
 
     // 3) Loop & apply config
-    for (const prod of products) {
+    await Promise.all(
+      products.map(async (prod: any) => {
       const pid = prod.id;
       console.log(`🏷 Product ${pid} (${prod.title})`);
 
@@ -186,7 +181,7 @@ export async function POST(req: Request) {
       const mapping = stateMap[state];
       if (!state || !mapping) {
         console.log(`  • Skipping ${pid}: no state or no mapping`);
-        continue;
+        return;
       }
 
       // Handle ATC label as before...
@@ -214,7 +209,8 @@ export async function POST(req: Request) {
       for (const vid of variantIds) {
         await updateVariantPolicy(vid, mapping.policy);
       }
-    }
+    })
+  )
 
     console.log("🎉 Dynamic sync complete!");
     return NextResponse.json({ message: "Sync finished successfully" });

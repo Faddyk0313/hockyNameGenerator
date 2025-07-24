@@ -22,6 +22,15 @@ const HEADERS = {
   "Content-Type": "application/json",
 };
 
+
+// 1️⃣ background config
+export const config = {
+  runtime: 'nodejs',
+  background: true,
+};
+
+
+
 // Utility: pause to avoid rate limits
 async function pause(ms = 200) {
   return new Promise((r) => setTimeout(r, ms));

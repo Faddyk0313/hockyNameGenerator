@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 
 const SHOPIFY_STORE = process.env.SHOP;
@@ -5,7 +6,8 @@ const SHOPIFY_ACCESS_TOKEN = process.env.ADMIN_TOKEN || "";
 const SHOPIFY_API_VERSION = "2023-10";
 const JUDGEME_API_TOKEN = process.env.JUDGE_ME_PRIVATE_API_TOKEN;
 
-const CACHE_DURATION = 1000 * 60 * 5; // 5 minutes
+const REVALIDATE_SECONDS = 302400; // 3.5 days
+const RESPONSE_CACHE_CONTROL = `public, s-maxage=${REVALIDATE_SECONDS}, stale-while-revalidate=86400`;
 const JUDGEME_PER_PAGE = 100;
 const MAX_JUDGEME_PAGES = 100;
 
@@ -21,14 +23,10 @@ type ShopifyProduct = {
   title?: string;
 };
 
-type CollectionProductCacheEntry = {
-  timestamp: number;
-  products: ShopifyProduct[];
-  collection: ShopifyCollection;
+type GroupedReviews = {
+  "With Pictures": any[];
+  "Without Pictures": any[];
 };
-
-let allReviewsCache: { timestamp: number; reviews: any[] } | null = null;
-const collectionProductsCache = new Map<string, CollectionProductCacheEntry>();
 
 function sortByCreatedDesc(reviews: any[]) {
   return reviews.slice().sort((a, b) => {
@@ -64,7 +62,7 @@ async function shopifyFetch(url: string) {
 }
 
 async function findCollectionByHandle(collectionHandle: string) {
-  const handle = collectionHandle.trim();
+  const handle = normalizeHandle(collectionHandle);
 
   for (const kind of ["custom_collections", "smart_collections"] as const) {
     const url =
@@ -80,14 +78,6 @@ async function findCollectionByHandle(collectionHandle: string) {
 }
 
 async function fetchProductsForCollection(collection: ShopifyCollection) {
-  const cacheKey = String(collection.id);
-  const now = Date.now();
-  const cached = collectionProductsCache.get(cacheKey);
-
-  if (cached && now - cached.timestamp < CACHE_DURATION) {
-    return cached;
-  }
-
   const products: ShopifyProduct[] = [];
   let url: string | null =
     `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/products.json` +
@@ -100,9 +90,7 @@ async function fetchProductsForCollection(collection: ShopifyCollection) {
     url = getNextPageUrl(response);
   }
 
-  const entry = { timestamp: now, products, collection };
-  collectionProductsCache.set(cacheKey, entry);
-  return entry;
+  return { products, collection };
 }
 
 function extractReviewProductIdentifiers(review: any) {
@@ -132,12 +120,6 @@ function reviewBelongsToProducts(review: any, productIds: Set<string>, productHa
 }
 
 async function fetchAllJudgeMeReviews() {
-  const now = Date.now();
-
-  if (allReviewsCache && now - allReviewsCache.timestamp < CACHE_DURATION) {
-    return allReviewsCache.reviews;
-  }
-
   const reviews: any[] = [];
 
   for (let page = 1; page <= MAX_JUDGEME_PAGES; page += 1) {
@@ -159,8 +141,84 @@ async function fetchAllJudgeMeReviews() {
     if (batch.length < JUDGEME_PER_PAGE) break;
   }
 
-  allReviewsCache = { timestamp: now, reviews };
   return reviews;
+}
+
+function normalizeHandle(collectionHandle: string) {
+  return collectionHandle.trim().toLowerCase();
+}
+
+function buildGroupedReviews(products: ShopifyProduct[], allReviews: any[]): GroupedReviews {
+  const productIds = new Set(products.map((product) => String(product.id).toLowerCase()));
+  const productHandles = new Set(
+    products
+      .map((product) => product.handle)
+      .filter((handle): handle is string => Boolean(handle))
+      .map((handle) => handle.toLowerCase()),
+  );
+
+  const collectionReviews = allReviews.filter((review) =>
+    reviewBelongsToProducts(review, productIds, productHandles),
+  );
+
+  const withPictures = collectionReviews.filter(
+    (review) => Array.isArray(review.pictures) && review.pictures.length > 0,
+  );
+  const withoutPictures = collectionReviews.filter(
+    (review) => !Array.isArray(review.pictures) || review.pictures.length === 0,
+  );
+
+  return {
+    "With Pictures": sortByCreatedDesc(withPictures),
+    "Without Pictures": sortByCreatedDesc(withoutPictures),
+  };
+}
+
+async function getCachedCollection(collectionHandle: string) {
+  const normalizedHandle = normalizeHandle(collectionHandle);
+  return unstable_cache(
+    async () => findCollectionByHandle(normalizedHandle),
+    ["reviews-by-collection", "collection", normalizedHandle],
+    { revalidate: REVALIDATE_SECONDS },
+  )();
+}
+
+async function getCachedCollectionProducts(collection: ShopifyCollection) {
+  const collectionId = String(collection.id);
+  return unstable_cache(
+    async () => fetchProductsForCollection(collection),
+    ["reviews-by-collection", "collection-products", collectionId],
+    { revalidate: REVALIDATE_SECONDS },
+  )();
+}
+
+async function getCachedAllJudgeMeReviews() {
+  return unstable_cache(async () => fetchAllJudgeMeReviews(), ["reviews-by-collection", "judgeme"], {
+    revalidate: REVALIDATE_SECONDS,
+  })();
+}
+
+async function getCachedGroupedReviews(collectionHandle: string) {
+  const normalizedHandle = normalizeHandle(collectionHandle);
+
+  return unstable_cache(
+    async () => {
+      const collection = await getCachedCollection(normalizedHandle);
+
+      if (!collection) {
+        return null;
+      }
+
+      const [{ products }, allReviews] = await Promise.all([
+        getCachedCollectionProducts(collection),
+        getCachedAllJudgeMeReviews(),
+      ]);
+
+      return buildGroupedReviews(products, allReviews);
+    },
+    ["reviews-by-collection", "grouped-reviews", normalizedHandle],
+    { revalidate: REVALIDATE_SECONDS },
+  )();
 }
 
 export async function GET(req: Request) {
@@ -185,43 +243,14 @@ export async function GET(req: Request) {
   }
 
   try {
-    const collection = await findCollectionByHandle(collectionHandle);
+    const groupedReviews = await getCachedGroupedReviews(collectionHandle);
 
-    if (!collection) {
+    if (!groupedReviews) {
       return NextResponse.json(
         { success: false, groupedReviews: null, message: "Collection not found" },
         { status: 404 },
       );
     }
-
-    const [{ products }, allReviews] = await Promise.all([
-      fetchProductsForCollection(collection),
-      fetchAllJudgeMeReviews(),
-    ]);
-
-    const productIds = new Set(products.map((product) => String(product.id).toLowerCase()));
-    const productHandles = new Set(
-      products
-        .map((product) => product.handle)
-        .filter((handle): handle is string => Boolean(handle))
-        .map((handle) => handle.toLowerCase()),
-    );
-
-    const collectionReviews = allReviews.filter((review) =>
-      reviewBelongsToProducts(review, productIds, productHandles),
-    );
-
-    const withPictures = collectionReviews.filter(
-      (review) => Array.isArray(review.pictures) && review.pictures.length > 0,
-    );
-    const withoutPictures = collectionReviews.filter(
-      (review) => !Array.isArray(review.pictures) || review.pictures.length === 0,
-    );
-
-    const groupedReviews = {
-      "With Pictures": sortByCreatedDesc(withPictures),
-      "Without Pictures": sortByCreatedDesc(withoutPictures),
-    };
 
     return NextResponse.json(
       {
@@ -229,7 +258,12 @@ export async function GET(req: Request) {
         groupedReviews,
         message: "Grouped successfully",
       },
-      { status: 200 },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": RESPONSE_CACHE_CONTROL,
+        },
+      },
     );
   } catch (error) {
     console.error("Internal Error:", error);

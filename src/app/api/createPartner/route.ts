@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { notifySlack, esc } from "@/lib/slack";
 
 export async function POST(req: Request) {
   const formData = await req.formData();
@@ -62,6 +63,30 @@ export async function POST(req: Request) {
   if (safeWebsite && !safeWebsite.startsWith("http://") && !safeWebsite.startsWith("https://")) {
     safeWebsite = "https://" + safeWebsite;
   }
+  const metafields: Array<Record<string, unknown>> = [
+    {
+      namespace: "partner_form",
+      key: "website",
+      value: safeWebsite,
+      type: "url",
+    },
+    {
+      namespace: "partner_form",
+      key: "tax_id",
+      value: tax_id,
+      type: "single_line_text_field",
+    },
+  ];
+
+  if (hubspotData?.url) {
+    metafields.push({
+      namespace: "custom",
+      key: "file_uplaod",
+      value: hubspotData.url,
+      type: "single_line_text_field",
+    });
+  }
+
   try {
     const response = await fetch(`https://${process.env.SHOP}/admin/api/2023-10/customers.json`, {
       method: "POST",
@@ -75,7 +100,7 @@ export async function POST(req: Request) {
           last_name,
           email,
           phone,
-          tags: ["pending-approval",partner_type],
+          tags: ["pending-approval", partner_type || "Retail"],
           note:business_description,
           addresses: [{
             address1,
@@ -85,28 +110,7 @@ export async function POST(req: Request) {
             country,
             zip
           }],
-          metafields: [
-           
-            {
-              "namespace": "partner_form",
-              "key": "website",
-              "value": safeWebsite,
-              "type": "url"
-            },
-            {
-              "namespace": "partner_form",
-              "key": "tax_id",
-              "value": tax_id,
-              "type": "single_line_text_field"
-            },
-            {
-              "namespace": "custom",
-              "key": "file_uplaod",
-              "value": hubspotData.url,
-              "type": "single_line_text_field"
-            },
-           
-          ],
+          metafields,
           email_marketing_consent: {
             state: "subscribed",
             opt_in_level: "single_opt_in",
@@ -142,7 +146,7 @@ export async function POST(req: Request) {
           website:safeWebsite,
           tax_id__abn__or_vat_number:tax_id,
           message:business_description,
-          tax_document:hubspotData.id,
+          tax_document:hubspotData?.id,
           customer_type:"Retail"
         },
       }),
@@ -158,6 +162,62 @@ export async function POST(req: Request) {
       console.error("Error:", errorData);
       return NextResponse.json({ success: false, message: errorData }, { status: 500 });
     }
+
+    const shopifyData = await response.json();
+    const customerId = shopifyData?.customer?.id;
+    const storeHandle = (process.env.SHOP ?? "").replace(".myshopify.com", "");
+    const adminUrl =
+      customerId && storeHandle
+        ? `https://admin.shopify.com/store/${storeHandle}/customers/${customerId}`
+        : null;
+
+    const fullName = `${first_name ?? ""} ${last_name ?? ""}`.trim();
+    const description =
+      typeof business_description === "string" && business_description.trim()
+        ? business_description.trim().slice(0, 500)
+        : "";
+
+    const links = [
+      adminUrl ? `<${adminUrl}|View customer in Shopify>` : null,
+      hubspotData?.url ? `<${hubspotData.url}|Tax document>` : null,
+    ].filter(Boolean);
+
+    await notifySlack({
+      text: `🤝 New Retail Partner Application: ${esc(fullName)}`,
+      blocks: [
+        {
+          type: "header",
+          text: { type: "plain_text", text: "🤝 New Retail Partner Application" },
+        },
+        {
+          type: "section",
+          fields: [
+            { type: "mrkdwn", text: `*Name*\n${esc(fullName) || "—"}` },
+            { type: "mrkdwn", text: `*Email*\n${esc(email) || "—"}` },
+            { type: "mrkdwn", text: `*Phone*\n${esc(phone) || "—"}` },
+            { type: "mrkdwn", text: `*Website*\n${esc(safeWebsite) || "—"}` },
+            { type: "mrkdwn", text: `*Tax ID*\n${esc(tax_id) || "—"}` },
+            {
+              type: "mrkdwn",
+              text: `*Location*\n${esc(
+                [city, province, zip, country].filter(Boolean).join(", ")
+              ) || "—"}`,
+            },
+          ],
+        },
+        ...(description
+          ? [
+              {
+                type: "section",
+                text: { type: "mrkdwn", text: `*About the business*\n${esc(description)}` },
+              },
+            ]
+          : []),
+        ...(links.length
+          ? [{ type: "context", elements: [{ type: "mrkdwn", text: links.join("  •  ") }] }]
+          : []),
+      ],
+    });
 
     return NextResponse.json({ success: true, message: "Your application is successfully submitted, we will check your details and send you activation email soon. It can take few days" }, { status: 200 });
   } catch (error) {

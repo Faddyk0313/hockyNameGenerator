@@ -35,9 +35,11 @@ const ALLOWED_EXTENSIONS = [
 // This route accepts uploads, so unlike the other /api routes it does not stay
 // open to any origin. Anything not listed here gets no CORS grant.
 const ALLOWED_ORIGINS = [
+  "https://www.titanbattlegear.com",
+  "https://titanbattlegear.com",
+  // The myshopify host serves preview themes (preview_theme_id=...), which is how the
+  // form is tested before it is placed on the live templates.
   "https://42ddef-3.myshopify.com",
-  "https://www.titanteamsports.com",
-  "https://titanteamsports.com",
 ];
 
 function corsHeaders(origin: string | null) {

@@ -4,8 +4,10 @@ const nextConfig = {
   async headers() {
       return [
           {
-              // matching all API routes
-              source: "/api/:path*",
+              // matching all API routes EXCEPT hubspot-logo-upload, which sets its own
+              // CORS headers restricted to the storefront. It accepts file uploads, so it
+              // must not inherit the blanket Access-Control-Allow-Origin: * below.
+              source: "/api/:path((?!hubspot-logo-upload).*)",
               headers: [
                 { key: "Access-Control-Allow-Credentials", value: "true" },
                 { key: "Access-Control-Allow-Origin", value: "*" }, // replace this your actual origin

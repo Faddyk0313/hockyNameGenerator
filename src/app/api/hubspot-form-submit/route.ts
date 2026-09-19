@@ -184,6 +184,12 @@ export async function POST(req: Request) {
     contact.lifecyclestage = "lead";
   }
 
+  // Stands in for the form-submission event that the "(Native)" workflows used to enroll
+  // on. Those are list-based and re-enroll when this value changes, so it must be written
+  // on every submit -- including a repeat submit by the same contact, whose ts_intake_source
+  // is already set and would otherwise never re-trigger. Epoch ms is what datetime expects.
+  contact.ts_last_intake_at = String(Date.now());
+
   try {
     const contactResult = await upsert("contacts", contact, "email");
     if (!contactResult) return fail(400, "An email address is required");

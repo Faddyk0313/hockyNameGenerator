@@ -190,6 +190,14 @@ export async function POST(req: Request) {
   // is already set and would otherwise never re-trigger. Epoch ms is what datetime expects.
   contact.ts_last_intake_at = String(Date.now());
 
+  // The "Auto Tagging Hubspot form submission" workflow tags every HubSpot form submitter
+  // B2B off the form-submission event. Native submissions raise no such event, so the tag
+  // is set here instead. That workflow still serves the other forms and stays on -- this
+  // only covers the gap it leaves for the two team forms.
+  if (!contact.customer_tag) {
+    contact.customer_tag = "B2B";
+  }
+
   try {
     const contactResult = await upsert("contacts", contact, "email");
     if (!contactResult) return fail(400, "An email address is required");

@@ -1,0 +1,216 @@
+import { NextResponse } from "next/server";
+import { upsert, updateOne, TwentyError } from "@/lib/twenty";
+import { PERSON_FIELDS, COMPANY_FIELDS, selectValue } from "@/lib/twenty-field-map";
+import { signConfirmToken } from "@/lib/confirm-token";
+import {
+  CONFIRMATION_SUBJECT,
+  confirmationEmailHtml,
+  confirmationEmailText,
+} from "@/lib/discount-confirmation-email";
+
+/**
+ * Twenty counterpart of hubspot-form-submit. Same payload shape -- `contact` and
+ * `company` keyed by HubSpot property names -- so the theme section needs only its
+ * `submit_endpoint` setting repointed here.
+ *
+ * Deliberately dumb: it upserts the Person and Company, associates them, and stops.
+ * Everything downstream -- lead scoring, task creation, the parent-referral contact,
+ * the confirmation email -- lives in Twenty workflows, where the sales team can edit
+ * the rules without a code change and a deploy. That is the whole point of moving off
+ * HubSpot; encoding branch logic here would just rebuild the same bottleneck in a new
+ * place.
+ *
+ * The referred decision-maker's details are written onto the submitting Person as
+ * ordinary fields, because the referral workflow needs them to exist on the record
+ * before it can act on them.
+ *
+ * The one piece of non-plumbing here is the confirmation email. It cannot be a Twenty
+ * workflow step: Twenty's send-email action sends through an OAuth-connected mailbox
+ * (ConnectedAccount), with no SMTP or API-key provider, so Resend has to be called from
+ * here. It is sent fire-and-forget so a slow mail API never delays the form response.
+ */
+
+/** Replaces HubSpot's "V1 Validation: Send Confirmation Email" workflow (1821117057). */
+async function sendConfirmationEmail(opts: {
+  to: string;
+  firstName: string;
+  companyName: string;
+  personId: string;
+}) {
+  if (!process.env.RESEND_API_KEY || !process.env.CONFIRM_TOKEN_SECRET) {
+    console.warn("[twenty-form-submit] email not configured; skipping confirmation");
+    return;
+  }
+
+  const base = process.env.PUBLIC_BASE_URL ?? "";
+  const confirmUrl = `${base}/api/twenty-confirm?token=${encodeURIComponent(
+    signConfirmToken(opts.personId)
+  )}`;
+  const body = { firstName: opts.firstName || "there", companyName: opts.companyName || "your organization", confirmUrl };
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: process.env.RESEND_FROM ?? "Titan Battlegear Team Sales <TeamSales@titanbattlegear.com>",
+      to: [opts.to],
+      reply_to: "TeamSales@titanbattlegear.com",
+      subject: CONFIRMATION_SUBJECT,
+      html: confirmationEmailHtml(body),
+      text: confirmationEmailText(body),
+    }),
+  });
+
+  if (!res.ok) {
+    console.error("[twenty-form-submit] resend failed", res.status, await res.text());
+  }
+}
+
+const ALLOWED_ORIGINS = [
+  "https://www.titanbattlegear.com",
+  "https://titanbattlegear.com",
+  "https://42ddef-3.myshopify.com",
+];
+
+const MAX_VALUE_LENGTH = 65536;
+
+type Props = Record<string, string>;
+
+function corsHeaders(origin: string | null) {
+  const headers: Record<string, string> = { Vary: "Origin" };
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Access-Control-Allow-Methods"] = "POST, OPTIONS";
+    headers["Access-Control-Allow-Headers"] = "Content-Type";
+  }
+  return headers;
+}
+
+export async function OPTIONS(req: Request) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders(req.headers.get("origin")),
+  });
+}
+
+function clean(input: unknown): Props {
+  if (!input || typeof input !== "object") return {};
+  const out: Props = {};
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (value === undefined || value === null) continue;
+    const str = typeof value === "string" ? value : String(value);
+    if (!str.trim() || str.length > MAX_VALUE_LENGTH) continue;
+    out[key] = str.trim();
+  }
+  return out;
+}
+
+/** Map HubSpot-named props onto a Twenty record, re-keying dropdowns and composites. */
+function toTwenty(props: Props, map: Record<string, string>) {
+  const rec: Record<string, unknown> = {};
+  const name: Record<string, string> = {};
+  const address: Record<string, string> = {};
+
+  for (const [hsName, raw] of Object.entries(props)) {
+    const target = map[hsName];
+    if (!target) continue;
+
+    const value = selectValue(hsName, raw);
+    if (value === null) continue; // unknown dropdown option: drop the field, keep the lead
+
+    if (target === "name.firstName") name.firstName = value;
+    else if (target === "name.lastName") name.lastName = value;
+    else if (target === "emails") rec.emails = { primaryEmail: value };
+    else if (target === "phones") rec.phones = { primaryPhoneNumber: value };
+    else if (target === "domainName") {
+      const url = value.startsWith("http") ? value : `https://${value}`;
+      rec.domainName = { primaryLinkUrl: url };
+    } else if (target.startsWith("address.")) address[target.slice(8)] = value;
+    else rec[target] = value;
+  }
+
+  if (Object.keys(name).length) rec.name = name;
+  if (Object.keys(address).length) rec.address = address;
+  return rec;
+}
+
+export async function POST(req: Request) {
+  const cors = corsHeaders(req.headers.get("origin"));
+  const fail = (status: number, error: string) =>
+    NextResponse.json({ success: false, error }, { status, headers: cors });
+
+  if (!process.env.TWENTY_SERVER_URL || !process.env.TWENTY_API_KEY) {
+    console.error("[twenty-form-submit] TWENTY_SERVER_URL or TWENTY_API_KEY is not set");
+    return fail(500, "Server is not configured");
+  }
+
+  let payload: { formName?: string; contact?: unknown; company?: unknown; pageUri?: string };
+  try {
+    payload = await req.json();
+  } catch {
+    return fail(400, "Invalid request body");
+  }
+
+  const contact = clean(payload.contact);
+  const company = clean(payload.company);
+  if (!contact.email) return fail(400, "An email address is required");
+
+  if (payload.formName && !contact.ts_intake_source) {
+    contact.ts_intake_source = payload.formName;
+  }
+  if (!contact.customer_tag) contact.customer_tag = "B2B";
+
+  try {
+    const personRecord = toTwenty(contact, PERSON_FIELDS);
+    const person = await upsert(
+      "people",
+      `emails.primaryEmail[eq]:${contact.email}`,
+      personRecord
+    );
+
+    let companyId: string | null = null;
+    if (company.name) {
+      const companyRecord = toTwenty(company, COMPANY_FIELDS);
+      const c = await upsert("companies", `name[eq]:${company.name}`, companyRecord);
+      companyId = c.id;
+      try {
+        // Set last: the referral workflow keys off the Person already having a company.
+        await updateOne("people", person.id, { companyId });
+      } catch (err) {
+        console.warn("[twenty-form-submit] association failed", (err as Error).message);
+      }
+    }
+
+    // Fire and forget: a mail failure must not fail a submission already saved.
+    void sendConfirmationEmail({
+      to: contact.email,
+      firstName: contact.firstname ?? "",
+      companyName: company.name ?? "",
+      personId: person.id,
+    }).catch((err) =>
+      console.error("[twenty-form-submit] confirmation email failed", err?.message)
+    );
+
+    console.log("[twenty-form-submit]", {
+      form: payload.formName,
+      personId: person.id,
+      companyId,
+      created: person.created,
+    });
+
+    return NextResponse.json(
+      { success: true, personId: person.id, companyId, created: person.created },
+      { status: 200, headers: cors }
+    );
+  } catch (error) {
+    const e = error as TwentyError;
+    console.error("[twenty-form-submit] failed", e.status, e.message, JSON.stringify(e.body));
+    return fail(
+      e.status === 400 ? 400 : 502,
+      e.status === 400 ? e.message : "Could not save your submission"
+    );
+  }
+}

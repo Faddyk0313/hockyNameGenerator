@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server";
 import { upsert, updateOne, TwentyError } from "@/lib/twenty";
 import { PERSON_FIELDS, COMPANY_FIELDS, selectValue } from "@/lib/twenty-field-map";
-import { signConfirmToken } from "@/lib/confirm-token";
-import {
-  CONFIRMATION_SUBJECT,
-  confirmationEmailHtml,
-  confirmationEmailText,
-} from "@/lib/discount-confirmation-email";
 
 /**
  * Twenty counterpart of hubspot-form-submit. Same payload shape -- `contact` and
@@ -24,50 +18,11 @@ import {
  * ordinary fields, because the referral workflow needs them to exist on the record
  * before it can act on them.
  *
- * The one piece of non-plumbing here is the confirmation email. It cannot be a Twenty
- * workflow step: Twenty's send-email action sends through an OAuth-connected mailbox
- * (ConnectedAccount), with no SMTP or API-key provider, so Resend has to be called from
- * here. It is sent fire-and-forget so a slow mail API never delays the form response.
+ * The confirmation email is a Twenty workflow step, not sent from here: Twenty's
+ * send-email action works with an IMAP_SMTP_CALDAV connected account, so Resend reaches
+ * it over SMTP. Only /api/twenty-confirm stays on this side, because the confirm link
+ * needs a signed URL that a workflow cannot mint.
  */
-
-/** Replaces HubSpot's "V1 Validation: Send Confirmation Email" workflow (1821117057). */
-async function sendConfirmationEmail(opts: {
-  to: string;
-  firstName: string;
-  companyName: string;
-  personId: string;
-}) {
-  if (!process.env.RESEND_API_KEY || !process.env.CONFIRM_TOKEN_SECRET) {
-    console.warn("[twenty-form-submit] email not configured; skipping confirmation");
-    return;
-  }
-
-  const base = process.env.PUBLIC_BASE_URL ?? "";
-  const confirmUrl = `${base}/api/twenty-confirm?token=${encodeURIComponent(
-    signConfirmToken(opts.personId)
-  )}`;
-  const body = { firstName: opts.firstName || "there", companyName: opts.companyName || "your organization", confirmUrl };
-
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: process.env.RESEND_FROM ?? "Titan Battlegear Team Sales <TeamSales@titanbattlegear.com>",
-      to: [opts.to],
-      reply_to: "TeamSales@titanbattlegear.com",
-      subject: CONFIRMATION_SUBJECT,
-      html: confirmationEmailHtml(body),
-      text: confirmationEmailText(body),
-    }),
-  });
-
-  if (!res.ok) {
-    console.error("[twenty-form-submit] resend failed", res.status, await res.text());
-  }
-}
 
 const ALLOWED_ORIGINS = [
   "https://www.titanbattlegear.com",
@@ -183,16 +138,6 @@ export async function POST(req: Request) {
         console.warn("[twenty-form-submit] association failed", (err as Error).message);
       }
     }
-
-    // Fire and forget: a mail failure must not fail a submission already saved.
-    void sendConfirmationEmail({
-      to: contact.email,
-      firstName: contact.firstname ?? "",
-      companyName: company.name ?? "",
-      personId: person.id,
-    }).catch((err) =>
-      console.error("[twenty-form-submit] confirmation email failed", err?.message)
-    );
 
     console.log("[twenty-form-submit]", {
       form: payload.formName,

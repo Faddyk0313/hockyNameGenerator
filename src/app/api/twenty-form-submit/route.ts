@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { upsert, updateOne, TwentyError } from "@/lib/twenty";
+import { upsert, TwentyError } from "@/lib/twenty";
 import { PERSON_FIELDS, COMPANY_FIELDS, selectValue } from "@/lib/twenty-field-map";
 import { confirmUrlFor } from "@/lib/confirm-token";
 import { sendEmail } from "@/lib/resend";
@@ -22,8 +22,8 @@ import {
  * place.
  *
  * The referred decision-maker's details are written onto the submitting Person as
- * ordinary fields, because the referral workflow needs them to exist on the record
- * before it can act on them.
+ * ordinary fields, and the Company is upserted before the Person, because the referral
+ * workflow triggers on person.created and sees only the record as it was created.
  *
  * The confirmation email is the one exception to that split, and it is sent from here.
  * It was going to be a Twenty workflow step -- Twenty can send through Resend over SMTP
@@ -166,25 +166,25 @@ export async function POST(req: Request) {
   if (!contact.customer_tag) contact.customer_tag = "B2B";
 
   try {
-    const personRecord = toTwenty(contact, PERSON_FIELDS);
-    const person = await upsert(
-      "people",
-      `emails.primaryEmail[eq]:${contact.email}`,
-      personRecord
-    );
-
+    // Company first, so the Person can be created with companyId already set. The
+    // referral workflow triggers on person.created and reads the company off the
+    // trigger payload; that payload is the record as created, so associating in a
+    // later update is invisible to it and its Update Company step fails with
+    // "Object record ID and name are required".
     let companyId: string | null = null;
     if (company.name) {
       const companyRecord = toTwenty(company, COMPANY_FIELDS);
       const c = await upsert("companies", `name[eq]:${company.name}`, companyRecord);
       companyId = c.id;
-      try {
-        // Set last: the referral workflow keys off the Person already having a company.
-        await updateOne("people", person.id, { companyId });
-      } catch (err) {
-        console.warn("[twenty-form-submit] association failed", (err as Error).message);
-      }
     }
+
+    const personRecord = toTwenty(contact, PERSON_FIELDS);
+    if (companyId) personRecord.companyId = companyId;
+    const person = await upsert(
+      "people",
+      `emails.primaryEmail[eq]:${contact.email}`,
+      personRecord
+    );
 
     console.log("[twenty-form-submit]", {
       form: payload.formName,

@@ -27,3 +27,16 @@ export function verifyConfirmToken(token: string): string | null {
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   return personId;
 }
+
+/**
+ * Absolute URL for the "CONFIRM TEAM DISCOUNT REQUEST" button.
+ *
+ * HubSpot linked to a static page and stamped a per-recipient `_hsenc` parameter onto
+ * it at send time, which is what identified the clicker. There is no equivalent here,
+ * so the identity travels in our own signed token instead.
+ */
+export function confirmUrlFor(personId: string): string {
+  const base = (process.env.PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
+  const token = signConfirmToken(personId);
+  return `${base}/api/twenty-confirm?token=${encodeURIComponent(token)}`;
+}

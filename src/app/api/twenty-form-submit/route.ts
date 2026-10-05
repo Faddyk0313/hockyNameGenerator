@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { upsert, updateOne, TwentyError } from "@/lib/twenty";
 import { PERSON_FIELDS, COMPANY_FIELDS, selectValue } from "@/lib/twenty-field-map";
+import { confirmUrlFor } from "@/lib/confirm-token";
+import { sendEmail } from "@/lib/resend";
+import {
+  CONFIRMATION_SUBJECT,
+  confirmationEmailHtml,
+  confirmationEmailText,
+} from "@/lib/discount-confirmation-email";
 
 /**
  * Twenty counterpart of hubspot-form-submit. Same payload shape -- `contact` and
@@ -18,10 +25,12 @@ import { PERSON_FIELDS, COMPANY_FIELDS, selectValue } from "@/lib/twenty-field-m
  * ordinary fields, because the referral workflow needs them to exist on the record
  * before it can act on them.
  *
- * The confirmation email is a Twenty workflow step, not sent from here: Twenty's
- * send-email action works with an IMAP_SMTP_CALDAV connected account, so Resend reaches
- * it over SMTP. Only /api/twenty-confirm stays on this side, because the confirm link
- * needs a signed URL that a workflow cannot mint.
+ * The confirmation email is the one exception to that split, and it is sent from here.
+ * It was going to be a Twenty workflow step -- Twenty can send through Resend over SMTP
+ * -- but the confirm button needs a per-person signed URL, and Twenty's template engine
+ * can only interpolate record fields; it cannot compute an HMAC. HubSpot had the same
+ * requirement and met it invisibly, stamping a `_hsenc` parameter onto a static link at
+ * send time. Sending from here is the faithful port; only the copy becomes less editable.
  */
 
 const ALLOWED_ORIGINS = [
@@ -92,6 +101,44 @@ function toTwenty(props: Props, map: Record<string, string>) {
   return rec;
 }
 
+/**
+ * Send the confirmation email. Never throws: by the time this runs the Person is
+ * already saved in Twenty, so a Resend outage must not turn a captured lead into a
+ * form error for the visitor. Failures are logged for follow-up instead.
+ */
+async function sendConfirmation(opts: {
+  personId: string;
+  email: string;
+  firstName: string;
+  companyName: string;
+}) {
+  try {
+    const confirmUrl = confirmUrlFor(opts.personId);
+    const body = {
+      firstName: opts.firstName || "there",
+      companyName: opts.companyName || "your organization",
+      confirmUrl,
+    };
+    const sent = await sendEmail({
+      to: opts.email,
+      subject: CONFIRMATION_SUBJECT,
+      html: confirmationEmailHtml(body),
+      text: confirmationEmailText(body),
+      replyTo: "TeamSales@titanbattlegear.com",
+    });
+    console.log("[twenty-form-submit] confirmation sent", {
+      personId: opts.personId,
+      messageId: sent.id,
+    });
+  } catch (err) {
+    console.error(
+      "[twenty-form-submit] confirmation email failed",
+      opts.personId,
+      (err as Error).message
+    );
+  }
+}
+
 export async function POST(req: Request) {
   const cors = corsHeaders(req.headers.get("origin"));
   const fail = (status: number, error: string) =>
@@ -145,6 +192,18 @@ export async function POST(req: Request) {
       companyId,
       created: person.created,
     });
+
+    // Only on first capture. HubSpot's workflow had shouldReEnroll:false, so a repeat
+    // submission from the same email did not re-send; awaited rather than detached
+    // because a serverless function may be frozen the moment it responds.
+    if (person.created) {
+      await sendConfirmation({
+        personId: person.id,
+        email: contact.email,
+        firstName: contact.firstname ?? "",
+        companyName: company.name ?? "",
+      });
+    }
 
     return NextResponse.json(
       { success: true, personId: person.id, companyId, created: person.created },

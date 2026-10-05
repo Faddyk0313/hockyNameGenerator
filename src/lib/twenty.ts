@@ -26,6 +26,10 @@ export async function twenty(path: string, init: RequestInit = {}) {
     headers: {
       Authorization: `Bearer ${process.env.TWENTY_API_KEY}`,
       "Content-Type": "application/json",
+      // ngrok's free tier serves a browser interstitial to non-browser clients, which
+      // arrives as HTML where JSON is expected and surfaces as the non-JSON error below.
+      // Harmless against any other host. Drop it once Twenty is on the VM.
+      "ngrok-skip-browser-warning": "1",
       ...(init.headers as Record<string, string> | undefined),
     },
   });
@@ -35,8 +39,17 @@ export async function twenty(path: string, init: RequestInit = {}) {
   try {
     body = text ? JSON.parse(text) : null;
   } catch {
-    // "Query read timeout" and friends arrive as a bare string.
-    throw new TwentyError(text.slice(0, 200) || "Twenty returned a non-JSON body", 504, text);
+    // Two very different causes land here. "Query read timeout" and friends arrive as a
+    // bare string from Twenty itself. An HTML body instead means something in front of
+    // Twenty answered rather than Twenty -- a Cloudflare bot challenge or an ngrok
+    // interstitial -- which is worth naming, because the generic timeout message sent
+    // the last debugging session looking in the wrong place entirely.
+    const looksHtml = /^\s*<(?:!doctype|html)/i.test(text);
+    const message = looksHtml
+      ? `Twenty is behind an interstitial: ${res.status} HTML from ${new URL(BASE).host} ` +
+        `(bot challenge or tunnel warning page), not a Twenty response`
+      : text.slice(0, 200) || "Twenty returned a non-JSON body";
+    throw new TwentyError(message, 504, text.slice(0, 500));
   }
 
   if (!res.ok) {

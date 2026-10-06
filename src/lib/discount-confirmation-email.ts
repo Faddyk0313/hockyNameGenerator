@@ -18,7 +18,10 @@ export const CONFIRMATION_SUBJECT = "Confirm Your Team Discount Request";
 export const CONFIRMATION_PREVIEW =
   "Click below to verify your request. Once confirmed, our team will reach out to coordinate your discount window.";
 
-const LOGO_URL = "https://www.titanbattlegear.com/cdn/shop/files/titan-logo.png";
+// Shopify CDN, not the storefront path: the old /cdn/shop/files/titan-logo.png 404s,
+// which is why the logo showed as alt text in delivered mail. 738x239 natural size.
+const LOGO_URL =
+  "https://cdn.shopify.com/s/files/1/0635/2401/2210/files/titan_battlegear_logo.png?v=1730320377";
 const REFERRAL_FORM_URL = "https://www.titanbattlegear.com/pages/team-discount-program";
 
 export function confirmationEmailHtml(opts: {
@@ -38,7 +41,7 @@ export function confirmationEmailHtml(opts: {
       <tr><td align="center" style="padding:32px 16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
           <tr><td align="center" style="padding-bottom:28px;">
-            <img src="${LOGO_URL}" alt="Titan BattleGear" width="200" style="display:block;border:0;max-width:200px;height:auto;">
+            <img src="${LOGO_URL}" alt="Titan BattleGear" width="220" height="71" style="display:block;border:0;width:220px;max-width:220px;height:auto;">
           </td></tr>
 
           <tr><td style="font-size:16px;line-height:1.6;padding-bottom:16px;">Hi ${esc(firstName)},</td></tr>

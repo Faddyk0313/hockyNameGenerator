@@ -186,8 +186,13 @@ export async function POST(req: Request) {
       // Jr Hockey" vs "Oakville Jr. Hockey Club") found nothing, tried to create, and was
       // rejected on the duplicate domain -- losing the lead on a 400. Match the domain
       // first when there is one, and fall back to the name.
+      // Twenty stores the domain with the scheme stripped ("example.com", not
+      // "https://example.com") but filters match the stored string literally, so the
+      // lookup has to use the bare host or it silently finds nothing and we are back to
+      // a duplicate-key 400.
       const domain = (companyRecord.domainName as { primaryLinkUrl?: string } | undefined)
-        ?.primaryLinkUrl;
+        ?.primaryLinkUrl?.replace(/^https?:\/\//, "")
+        .replace(/\/+$/, "");
       const matchFilter = domain
         ? `domainName.primaryLinkUrl[eq]:${domain}`
         : `name[eq]:${company.name}`;

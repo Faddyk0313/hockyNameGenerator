@@ -41,6 +41,9 @@ const ALLOWED_ORIGINS = [
 
 const MAX_VALUE_LENGTH = 65536;
 
+/** Mirrors HubSpot's legalBasis + legalBasisExplanation on subscription 2615227543. */
+const CONSENT_BASIS = "LEGITIMATE_INTEREST_PQL: Contact submitted Team Discount";
+
 type Props = Record<string, string>;
 
 function corsHeaders(origin: string | null) {
@@ -165,6 +168,8 @@ export async function POST(req: Request) {
   }
   if (!contact.customer_tag) contact.customer_tag = "B2B";
 
+  const now = new Date().toISOString();
+
   try {
     // Company first, so the Person can be created with companyId already set. The
     // referral workflow triggers on person.created and reads the company off the
@@ -193,6 +198,21 @@ export async function POST(req: Request) {
 
     const personRecord = toTwenty(contact, PERSON_FIELDS);
     if (companyId) personRecord.companyId = companyId;
+
+    // Consent. HubSpot workflow 1821632592 opted every submitter into subscription
+    // 2615227543 on LEGITIMATE_INTEREST_PQL -- there is no checkbox on the form, the
+    // submission itself is the basis. Twenty has no subscription object, so rather than
+    // drop the record entirely we store the facts that make it auditable: the flag, when
+    // it happened, the basis, and which form it came from. This is a record of the event,
+    // not a consent platform; when marketing email lands somewhere real (Klaviyo is the
+    // candidate) these four fields are what gets migrated.
+    personRecord.tsMarketingConsent = true;
+    personRecord.tsMarketingConsentAt = now;
+    personRecord.tsMarketingConsentBasis = CONSENT_BASIS;
+    personRecord.tsMarketingConsentSource = payload.formName || "Team Discount Form";
+
+    // The handover says the relay stamps this; the field did not exist until now.
+    personRecord.tsLastIntakeAt = now;
     const person = await upsert(
       "people",
       `emails.primaryEmail[eq]:${contact.email}`,

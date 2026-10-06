@@ -174,7 +174,20 @@ export async function POST(req: Request) {
     let companyId: string | null = null;
     if (company.name) {
       const companyRecord = toTwenty(company, COMPANY_FIELDS);
-      const c = await upsert("companies", `name[eq]:${company.name}`, companyRecord);
+
+      // Twenty puts a UNIQUE index on domainNamePrimaryLinkUrl, so the domain -- not the
+      // name -- is a company's identity there. Matching on name alone meant a submission
+      // that reused a known domain under a different spelling of the org name ("Oakville
+      // Jr Hockey" vs "Oakville Jr. Hockey Club") found nothing, tried to create, and was
+      // rejected on the duplicate domain -- losing the lead on a 400. Match the domain
+      // first when there is one, and fall back to the name.
+      const domain = (companyRecord.domainName as { primaryLinkUrl?: string } | undefined)
+        ?.primaryLinkUrl;
+      const matchFilter = domain
+        ? `domainName.primaryLinkUrl[eq]:${domain}`
+        : `name[eq]:${company.name}`;
+
+      const c = await upsert("companies", matchFilter, companyRecord);
       companyId = c.id;
     }
 

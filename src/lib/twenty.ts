@@ -53,8 +53,13 @@ export async function twenty(path: string, init: RequestInit = {}) {
   }
 
   if (!res.ok) {
-    const message =
-      (body as { message?: string } | null)?.message ?? `Twenty ${res.status}`;
+    // TBG custom code: Twenty validation errors use `messages` (plural), so retain the
+    // actionable reason instead of collapsing every rejected request to "Twenty 400".
+    const errorBody = body as { message?: string; messages?: unknown } | null;
+    const messages = Array.isArray(errorBody?.messages)
+      ? errorBody.messages.filter((item): item is string => typeof item === "string")
+      : [];
+    const message = errorBody?.message ?? (messages.join("; ") || `Twenty ${res.status}`);
     throw new TwentyError(message, res.status, body);
   }
   return body as Record<string, unknown>;

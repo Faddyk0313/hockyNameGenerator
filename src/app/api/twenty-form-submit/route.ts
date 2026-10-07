@@ -46,6 +46,21 @@ const CONSENT_BASIS = "LEGITIMATE_INTEREST_PQL: Contact submitted Team Discount"
 
 type Props = Record<string, string>;
 
+// TBG custom code: The form has no country selector, so normalize its Canadian/NANP
+// phone input into the composite shape required by Twenty v2.43.
+function toTwentyPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  const nationalNumber = digits.length === 11 && digits.startsWith("1")
+    ? digits.slice(1)
+    : digits;
+
+  return {
+    primaryPhoneNumber: nationalNumber,
+    primaryPhoneCallingCode: "+1",
+    primaryPhoneCountryCode: "CA",
+  };
+}
+
 function corsHeaders(origin: string | null) {
   const headers: Record<string, string> = { Vary: "Origin" };
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
@@ -91,7 +106,8 @@ function toTwenty(props: Props, map: Record<string, string>) {
     if (target === "name.firstName") name.firstName = value;
     else if (target === "name.lastName") name.lastName = value;
     else if (target === "emails") rec.emails = { primaryEmail: value };
-    else if (target === "phones") rec.phones = { primaryPhoneNumber: value };
+    // TBG custom code: Twenty rejects a bare phone number without calling-country data.
+    else if (target === "phones") rec.phones = toTwentyPhone(value);
     else if (target === "domainName") {
       const url = value.startsWith("http") ? value : `https://${value}`;
       rec.domainName = { primaryLinkUrl: url };

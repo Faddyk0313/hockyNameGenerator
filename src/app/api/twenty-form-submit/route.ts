@@ -48,17 +48,26 @@ type Props = Record<string, string>;
 
 // TBG custom code: The form has no country selector, so normalize its Canadian/NANP
 // phone input into the composite shape required by Twenty v2.43.
-function toTwentyPhone(value: string) {
+function toNanpNationalNumber(value: string) {
   const digits = value.replace(/\D/g, "");
-  const nationalNumber = digits.length === 11 && digits.startsWith("1")
+  return digits.length === 11 && digits.startsWith("1")
     ? digits.slice(1)
     : digits;
+}
 
+// TBG custom code: Native Twenty phone fields require all three composite values.
+function toTwentyPhone(value: string) {
   return {
-    primaryPhoneNumber: nationalNumber,
+    primaryPhoneNumber: toNanpNationalNumber(value),
     primaryPhoneCallingCode: "+1",
     primaryPhoneCountryCode: "CA",
   };
+}
+
+// TBG custom code: WF2 copies this text field into a native phone field, so give the
+// workflow an E.164-style value instead of the form's bare national number.
+function toTwentyWorkflowPhone(value: string) {
+  return `+1${toNanpNationalNumber(value)}`;
 }
 
 function corsHeaders(origin: string | null) {
@@ -108,6 +117,8 @@ function toTwenty(props: Props, map: Record<string, string>) {
     else if (target === "emails") rec.emails = { primaryEmail: value };
     // TBG custom code: Twenty rejects a bare phone number without calling-country data.
     else if (target === "phones") rec.phones = toTwentyPhone(value);
+    // TBG custom code: Prevent WF2's referred-person creation from failing on a bare phone.
+    else if (target === "tsReferredDmPhone") rec[target] = toTwentyWorkflowPhone(value);
     else if (target === "domainName") {
       const url = value.startsWith("http") ? value : `https://${value}`;
       rec.domainName = { primaryLinkUrl: url };

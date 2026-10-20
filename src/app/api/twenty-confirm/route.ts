@@ -17,7 +17,6 @@ const LOGO =
 
 const NAV: Array<[string, string]> = [
   ["Home", SITE],
-  ["Products", `${SITE}/pages/shop-by-collection`],
   ["Team Programs", `${SITE}/pages/team-sales-program`],
   ["Team Savings", `${SITE}/pages/team-discount-program`],
 ];

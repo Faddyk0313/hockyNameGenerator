@@ -70,6 +70,16 @@ function toTwentyWorkflowPhone(value: string) {
   return `+1${toNanpNationalNumber(value)}`;
 }
 
+// TBG custom code: The theme submits the team discount start as Unix milliseconds,
+// while Twenty's Date field only accepts a calendar date.
+function toTwentyDate(value: string): string | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+  if (!/^\d{13}$/.test(value)) return null;
+  const date = new Date(Number(value));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
 function corsHeaders(origin: string | null) {
   const headers: Record<string, string> = { Vary: "Origin" };
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
@@ -119,6 +129,11 @@ function toTwenty(props: Props, map: Record<string, string>) {
     else if (target === "phones") rec.phones = toTwentyPhone(value);
     // TBG custom code: Prevent WF2's referred-person creation from failing on a bare phone.
     else if (target === "tsReferredDmPhone") rec[target] = toTwentyWorkflowPhone(value);
+    // TBG custom code: Do not send the theme's epoch-millisecond value to a Date field.
+    else if (target === "tsTeamDiscountStart") {
+      const date = toTwentyDate(value);
+      if (date) rec[target] = date;
+    }
     else if (target === "domainName") {
       const url = value.startsWith("http") ? value : `https://${value}`;
       rec.domainName = { primaryLinkUrl: url };

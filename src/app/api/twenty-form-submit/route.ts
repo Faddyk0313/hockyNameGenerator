@@ -70,8 +70,8 @@ function toTwentyWorkflowPhone(value: string) {
   return `+1${toNanpNationalNumber(value)}`;
 }
 
-// TBG custom code: The theme submits the team discount start as Unix milliseconds,
-// while Twenty's Date field only accepts a calendar date.
+// TBG custom code: The theme submits date fields as Unix milliseconds, while Twenty's
+// Date fields only accept a calendar date.
 function toTwentyDate(value: string): string | null {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
 
@@ -130,7 +130,7 @@ function toTwenty(props: Props, map: Record<string, string>) {
     // TBG custom code: Prevent WF2's referred-person creation from failing on a bare phone.
     else if (target === "tsReferredDmPhone") rec[target] = toTwentyWorkflowPhone(value);
     // TBG custom code: Do not send the theme's epoch-millisecond value to a Date field.
-    else if (target === "tsTeamDiscountStart") {
+    else if (target === "tsTeamDiscountStart" || target === "tsDesiredDeliveryDate") {
       const date = toTwentyDate(value);
       if (date) rec[target] = date;
     }

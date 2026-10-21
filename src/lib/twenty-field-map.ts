@@ -68,6 +68,9 @@ const TEAM_PERSON: FieldMap = {
   ts_desired_delivery_date: { to: "tsDesiredDeliveryDate", kind: "date" },
   ts_lead_ordering_method: { to: "tsLeadOrderingMethod" },
   ts_team_sales_lead_status: { to: "tsTeamSalesLeadStatus" },
+  // Set by Workflow A in Twenty, not by the form. Mapped so a submission carrying it is not
+  // silently dropped.
+  ts_referral_status: { to: "tsReferralStatus" },
   ts_email_confirmation: { to: "tsEmailConfirmation", kind: "boolean" },
 };
 
@@ -109,18 +112,34 @@ export const TEAM_SALES_COMPANY_FIELDS: FieldMap = {
   ts_num_of_teams: { to: "tsNumOfTeams" },
 };
 
+/**
+ * Fields shared by the two consumer submission forms. Both ask for the same event context
+ * and the same single `consent_checkbox`; only the media field's label differs.
+ */
+const SUBMISSION_PERSON: FieldMap = {
+  event_name_single_line: { to: "tsEventName" },
+  date_of_event: { to: "tsEventDate", kind: "date" },
+  location_of_event: { to: "tsEventLocation" },
+  social_media_handles: { to: "tsSocialMediaHandles" },
+  consent_checkbox: { to: "tsMediaReleaseConsent", kind: "boolean" },
+  upload_images: { to: "tsUploadedMedia", kind: "link" },
+};
+
 export const PHOTO_PERSON_FIELDS: FieldMap = {
   ...COMMON_PERSON,
-  ts_photo_url: { to: "tsPhotoUrl", kind: "link" },
-  ts_photo_caption: { to: "tsPhotoCaption" },
-  ts_photo_consent: { to: "tsPhotoConsent", kind: "boolean" },
+  ...SUBMISSION_PERSON,
+  your_story: { to: "tsPhotoCaption" },
 };
 
 export const GIVEAWAY_PERSON_FIELDS: FieldMap = {
   ...COMMON_PERSON,
+  ...SUBMISSION_PERSON,
   titan_moment: { to: "tsTitanMoment" },
-  ts_photo_url: { to: "tsPhotoUrl", kind: "link" },
-  ts_giveaway_consent: { to: "tsGiveawayConsent", kind: "boolean" },
+};
+
+/** Both consumer forms collect a Team Name, which is a Company in Twenty. */
+export const SUBMISSION_COMPANY_FIELDS: FieldMap = {
+  company: { to: "name" },
 };
 
 /* ------------------------------------------------------------ select maps */
@@ -199,12 +218,23 @@ export const SELECT_VALUES: Record<string, Record<string, string>> = {
     Scheduled: "SCHEDULED",
   },
   // Team Sales
-  ts_logo_authorization: { Yes: "YES", No: "NO", "Not Sure": "NOT_SURE" },
+  ts_logo_authorization: {
+    Yes: "YES",
+    Refer: "REFER",
+    "Not Sure": "NOT_SURE",
+    No: "NO",
+  },
+  // HubSpot's first option is labelled "1-5" but stores "1" -- the mismatch TWENTY-FIELD-MAPPING
+  // flagged. Key on the submitted *value*, and accept the label too in case the theme sends it.
   ts_num_of_teams: {
     "1": "ONE",
+    "1-5": "ONE",
     "2-4": "TWO_TO_FOUR",
     "5-8": "FIVE_TO_EIGHT",
-    "9+": "NINE_PLUS",
+    "9-15": "NINE_TO_FIFTEEN",
+    "16-25": "SIXTEEN_TO_TWENTYFIVE",
+    "25+": "TWENTYFIVE_PLUS",
+    "Not Sure": "NOT_SURE",
   },
   // Titan Moments Giveaway. Values confirmed from the live HubSpot property.
   titan_moment: {

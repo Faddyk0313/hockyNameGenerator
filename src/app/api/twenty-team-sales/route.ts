@@ -19,6 +19,9 @@ export const POST = createFormHandler({
   formName: "Team Sales Form",
   personFields: TEAM_SALES_PERSON_FIELDS,
   companyFields: TEAM_SALES_COMPANY_FIELDS,
-  consentBasis: "LEGITIMATE_INTEREST_PQL: Contact submitted Team Custom Sales",
+  // Verbatim from HubSpot workflow 1822551927, which opts Team Sales submitters into
+  // subscription 2615227543. The explanation text really does say "Team Discount" there --
+  // their copy-paste from the discount workflow. Replicated as-is rather than corrected.
+  consentBasis: "LEGITIMATE_INTEREST_PQL: Contact submitted Team Discount",
   confirmation: null,
 });

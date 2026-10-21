@@ -232,8 +232,15 @@ export function createFormHandler(cfg: FormConfig) {
       // that payload is the record as created, so associating in a later update is invisible
       // to it and its Update Company step fails with "Object record ID and name are required".
       let companyId: string | null = null;
-      if (cfg.companyFields && company.name) {
-        const companyRecord = toTwenty(company, cfg.companyFields, cfg);
+      // The organization's name arrives under different HubSpot properties per form ("name" on
+      // the team forms, "company" on the consumer ones), so read it off the *mapped* record
+      // rather than assuming a property name.
+      const companyRecord = cfg.companyFields
+        ? toTwenty(company, cfg.companyFields, cfg)
+        : null;
+      const companyName =
+        typeof companyRecord?.name === "string" ? companyRecord.name : "";
+      if (companyRecord && companyName) {
 
         // Twenty puts a UNIQUE index on domainNamePrimaryLinkUrl, so the domain -- not the
         // name -- is a company's identity there. Matching on name alone meant a submission
@@ -247,7 +254,7 @@ export function createFormHandler(cfg: FormConfig) {
           .replace(/\/+$/, "");
         const matchFilter = domain
           ? `domainName.primaryLinkUrl[eq]:${domain}`
-          : `name[eq]:${company.name}`;
+          : `name[eq]:${companyName}`;
 
         const c = await upsert("companies", matchFilter, companyRecord);
         companyId = c.id;
@@ -294,7 +301,7 @@ export function createFormHandler(cfg: FormConfig) {
             personId: person.id,
             email: contact.email,
             firstName: contact.firstname ?? "",
-            companyName: company.name ?? "",
+            companyName,
           },
           cfg.formName
         );

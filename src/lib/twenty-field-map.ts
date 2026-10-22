@@ -137,6 +137,16 @@ export const GIVEAWAY_PERSON_FIELDS: FieldMap = {
   titan_moment: { to: "tsTitanMoment" },
 };
 
+/**
+ * "Email capture from 3d config" (e3e69038) -- the lead gate in the 3D configurator before
+ * a PDF/PNG download. The leanest form in the portal: three fields, no company, no consent,
+ * no notifyRecipients, and no workflow enrolls on it. It captures an email and nothing more,
+ * so the map is COMMON_PERSON and the route adds no behaviour on top.
+ */
+export const CONFIG_3D_PERSON_FIELDS: FieldMap = {
+  ...COMMON_PERSON,
+};
+
 /** Both consumer forms collect a Team Name, which is a Company in Twenty. */
 export const SUBMISSION_COMPANY_FIELDS: FieldMap = {
   company: { to: "name" },

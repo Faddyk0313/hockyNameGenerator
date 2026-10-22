@@ -33,6 +33,9 @@ const ALLOWED_ORIGINS = [
   "https://www.titanbattlegear.com",
   "https://titanbattlegear.com",
   "https://42ddef-3.myshopify.com",
+  // The 3D configurator is its own Vercel app, iframed into the theme, so its lead-gate
+  // form posts from this origin rather than the storefront's.
+  "https://titan-3d-product-configurator.vercel.app",
 ];
 
 const MAX_VALUE_LENGTH = 65536;

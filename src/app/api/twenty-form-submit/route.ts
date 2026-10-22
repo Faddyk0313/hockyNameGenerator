@@ -10,6 +10,8 @@
 
 import { createFormHandler, corsPreflight } from "@/lib/relay";
 import { DISCOUNT_PERSON_FIELDS, DISCOUNT_COMPANY_FIELDS } from "@/lib/twenty-field-map";
+import { DISCOUNT_NOTIFICATION_FIELDS } from "@/lib/intake-notification-fields";
+import { DISCOUNT_RECIPIENTS } from "@/lib/intake-notification-recipients";
 import {
   CONFIRMATION_SUBJECT,
   confirmationEmailHtml,
@@ -29,5 +31,9 @@ export const POST = createFormHandler({
     replyTo: "TeamSales@titanbattlegear.com",
     html: confirmationEmailHtml,
     text: confirmationEmailText,
+  },
+  notification: {
+    to: DISCOUNT_RECIPIENTS,
+    fields: DISCOUNT_NOTIFICATION_FIELDS,
   },
 });

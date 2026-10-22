@@ -10,6 +10,8 @@
 
 import { createFormHandler, corsPreflight } from "@/lib/relay";
 import { GIVEAWAY_PERSON_FIELDS, SUBMISSION_COMPANY_FIELDS } from "@/lib/twenty-field-map";
+import { GIVEAWAY_NOTIFICATION_FIELDS } from "@/lib/intake-notification-fields";
+import { CONSUMER_RECIPIENTS, CONSUMER_UNRESOLVED } from "@/lib/intake-notification-recipients";
 
 export const OPTIONS = corsPreflight;
 
@@ -22,4 +24,9 @@ export const POST = createFormHandler({
   // it is not a marketing opt-in.
   consentBasis: null,
   confirmation: null,
+  notification: {
+    to: CONSUMER_RECIPIENTS,
+    fields: GIVEAWAY_NOTIFICATION_FIELDS,
+    unresolvedRecipients: CONSUMER_UNRESOLVED,
+  },
 });

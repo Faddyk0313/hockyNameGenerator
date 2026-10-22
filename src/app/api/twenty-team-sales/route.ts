@@ -12,6 +12,8 @@
 
 import { createFormHandler, corsPreflight } from "@/lib/relay";
 import { TEAM_SALES_PERSON_FIELDS, TEAM_SALES_COMPANY_FIELDS } from "@/lib/twenty-field-map";
+import { TEAM_SALES_NOTIFICATION_FIELDS } from "@/lib/intake-notification-fields";
+import { TEAM_SALES_RECIPIENTS } from "@/lib/intake-notification-recipients";
 
 export const OPTIONS = corsPreflight;
 
@@ -24,4 +26,8 @@ export const POST = createFormHandler({
   // their copy-paste from the discount workflow. Replicated as-is rather than corrected.
   consentBasis: "LEGITIMATE_INTEREST_PQL: Contact submitted Team Discount",
   confirmation: null,
+  notification: {
+    to: TEAM_SALES_RECIPIENTS,
+    fields: TEAM_SALES_NOTIFICATION_FIELDS,
+  },
 });

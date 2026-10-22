@@ -23,7 +23,8 @@ export class ResendError extends Error {
 }
 
 export async function sendEmail(opts: {
-  to: string;
+  /** One address, or several for the internal notifications, which go to a small team list. */
+  to: string | string[];
   subject: string;
   html: string;
   text: string;
@@ -43,7 +44,7 @@ export async function sendEmail(opts: {
     },
     body: JSON.stringify({
       from,
-      to: [opts.to],
+      to: Array.isArray(opts.to) ? opts.to : [opts.to],
       subject: opts.subject,
       html: opts.html,
       text: opts.text,

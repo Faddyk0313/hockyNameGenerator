@@ -21,6 +21,13 @@ import { upsert, TwentyError } from "@/lib/twenty";
 import { selectValue, type FieldMap } from "@/lib/twenty-field-map";
 import { confirmUrlFor } from "@/lib/confirm-token";
 import { sendEmail } from "@/lib/resend";
+import {
+  notificationEmailHtml,
+  notificationEmailText,
+  notificationSubject,
+  type NotificationRow,
+} from "@/lib/intake-notification-email";
+import type { NotificationField } from "@/lib/intake-notification-fields";
 
 const ALLOWED_ORIGINS = [
   "https://www.titanbattlegear.com",
@@ -42,6 +49,18 @@ export type ConfirmationConfig = {
   text: (vars: { firstName: string; companyName: string; confirmUrl: string }) => string;
 };
 
+export type NotificationConfig = {
+  /** Resolved addresses. HubSpot stores user ids; they are resolved at build time. */
+  to: string[];
+  /** Field order and labels, straight from the HubSpot form definition. */
+  fields: NotificationField[];
+  /**
+   * HubSpot recipient ids on the form that no longer match an active or archived user.
+   * Named in the email rather than dropped silently, so a missing recipient is visible.
+   */
+  unresolvedRecipients?: string[];
+};
+
 export type FormConfig = {
   /** Used for logs, and as the fallback for ts_intake_source / consent source. */
   formName: string;
@@ -57,6 +76,11 @@ export type FormConfig = {
   consentBasis: string | null;
   /** Null for forms that send no confirmation email. */
   confirmation: ConfirmationConfig | null;
+  /**
+   * The internal "new submission" email. Null only for a form HubSpot did not notify on;
+   * all four intake forms do, via the form's own notifyRecipients.
+   */
+  notification: NotificationConfig | null;
   /** Default phone region. The forms have no country selector. */
   phoneDefault?: { callingCode: string; countryCode: string };
 };
@@ -192,6 +216,72 @@ async function sendConfirmation(
   }
 }
 
+/**
+ * Send the internal notification. Like sendConfirmation it never throws: the submission is
+ * already saved, and a Resend outage must not turn a captured lead into an error for the
+ * visitor.
+ *
+ * Rows are built from the submitted payload rather than the Twenty record, so the email
+ * reports what the person actually filled in even where a value was dropped on the way in.
+ * Fields the form did not include are skipped; HubSpot likewise omits empty rows.
+ */
+async function sendNotification(
+  cfg: NotificationConfig,
+  opts: { contact: Props; company: Props; personId: string; pageUri?: string },
+  formName: string
+) {
+  if (!cfg.to.length) {
+    console.warn(`[${formName}] notification skipped: no resolvable recipients`);
+    return;
+  }
+  try {
+    const submitted = { ...opts.company, ...opts.contact };
+    const rows: NotificationRow[] = [];
+    for (const f of cfg.fields) {
+      const raw = submitted[f.name];
+      if (raw === undefined || raw === "") continue;
+      rows.push({ label: f.label, value: formatForEmail(f.name, raw) });
+    }
+
+    const body = {
+      formName,
+      rows,
+      pageUri: opts.pageUri,
+      recordUrl: personUrlFor(opts.personId),
+      unresolvedRecipients: cfg.unresolvedRecipients,
+    };
+
+    const sent = await sendEmail({
+      to: cfg.to,
+      subject: notificationSubject(formName, rows),
+      html: notificationEmailHtml(body),
+      text: notificationEmailText(body),
+      // Replying goes to the submitter, as it does from HubSpot's notification.
+      replyTo: opts.contact.email,
+    });
+    console.log(`[${formName}] notification sent`, {
+      personId: opts.personId,
+      to: cfg.to.length,
+      messageId: sent.id,
+    });
+  } catch (err) {
+    console.error(`[${formName}] notification email failed`, opts.personId, (err as Error).message);
+  }
+}
+
+/** Dates arrive as HubSpot epoch ms; show a calendar date, not the raw number. */
+function formatForEmail(name: string, value: string) {
+  if (/^\d{13}$/.test(value)) return toTwentyDate(value) ?? value;
+  if (name === "consent_checkbox") return toBoolean(value) ? "Yes" : "No";
+  return value;
+}
+
+/** Deep link to the Person in Twenty, so the email lands where HubSpot's did. */
+function personUrlFor(personId: string) {
+  const base = process.env.TWENTY_APP_URL || process.env.TWENTY_SERVER_URL;
+  return base ? `${base.replace(/\/$/, "")}/object/person/${personId}` : undefined;
+}
+
 /* -------------------------------------------------------------------- route */
 
 export function corsPreflight(req: Request) {
@@ -209,7 +299,7 @@ export function createFormHandler(cfg: FormConfig) {
       return fail(500, "Server is not configured");
     }
 
-    let payload: { formName?: string; contact?: unknown; company?: unknown };
+    let payload: { formName?: string; contact?: unknown; company?: unknown; pageUri?: string };
     try {
       payload = await req.json();
     } catch {
@@ -221,6 +311,8 @@ export function createFormHandler(cfg: FormConfig) {
     if (!contact.email) return fail(400, "An email address is required");
 
     const formName = payload.formName || cfg.formName;
+    // The theme sends the page it was submitted from; HubSpot's notification showed it.
+    const pageUri = typeof payload.pageUri === "string" ? payload.pageUri : undefined;
     if (!contact.ts_intake_source) contact.ts_intake_source = formName;
     if (!contact.customer_tag) contact.customer_tag = "B2B";
 
@@ -304,6 +396,16 @@ export function createFormHandler(cfg: FormConfig) {
             companyName,
           },
           cfg.formName
+        );
+      }
+
+      // Every submission notifies, including a repeat one: HubSpot's form notification has
+      // no re-enrollment setting, so the team saw a second enquiry from a known contact.
+      if (cfg.notification) {
+        await sendNotification(
+          cfg.notification,
+          { contact, company, personId: person.id, pageUri },
+          formName
         );
       }
 

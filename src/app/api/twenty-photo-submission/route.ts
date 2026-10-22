@@ -10,6 +10,8 @@
 
 import { createFormHandler, corsPreflight } from "@/lib/relay";
 import { PHOTO_PERSON_FIELDS, SUBMISSION_COMPANY_FIELDS } from "@/lib/twenty-field-map";
+import { PHOTO_NOTIFICATION_FIELDS } from "@/lib/intake-notification-fields";
+import { CONSUMER_RECIPIENTS, CONSUMER_UNRESOLVED } from "@/lib/intake-notification-recipients";
 
 export const OPTIONS = corsPreflight;
 
@@ -21,4 +23,9 @@ export const POST = createFormHandler({
   // Recording a marketing opt-in here would invent consent the submitter never gave.
   consentBasis: null,
   confirmation: null,
+  notification: {
+    to: CONSUMER_RECIPIENTS,
+    fields: PHOTO_NOTIFICATION_FIELDS,
+    unresolvedRecipients: CONSUMER_UNRESOLVED,
+  },
 });

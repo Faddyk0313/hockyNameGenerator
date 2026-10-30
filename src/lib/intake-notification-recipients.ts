@@ -18,31 +18,18 @@
  * across team 77946091 is still unreplicated.
  */
 
-/**
- * TESTING ONLY -- every form notifies the tester while the stack runs on this Mac.
- *
- * The real lists are kept immediately below, commented out rather than deleted, so
- * restoring them on the VM is uncommenting four lines. Swap these back when the move
- * is done; until then nothing should reach a colleague's inbox from a test submission.
- */
-const TESTER = "kingshahbaz0313@gmail.com";
-
-// Real recipients, resolved from HubSpot's notifyRecipients. Restore on the VM move.
-// const ADAM = "acollins@titanbattlegear.com";
-// const ANDRIES = "andries@titanbattlegear.com";
-// const FAHD = "fahd@titanbattlegear.com";
+const ADAM = "acollins@titanbattlegear.com";
+const ANDRIES = "andries@titanbattlegear.com";
+const FAHD = "fahd@titanbattlegear.com";
 
 /** Team Discount Form, 7d807dfc. notifyContactOwner: false. */
-// export const DISCOUNT_RECIPIENTS = [ADAM, ANDRIES];
-export const DISCOUNT_RECIPIENTS = [TESTER];
+export const DISCOUNT_RECIPIENTS = [ADAM, ANDRIES];
 
 /** Team Custom Sales Form, d7bcd3f3. notifyContactOwner: true. */
-// export const TEAM_SALES_RECIPIENTS = [ADAM, ANDRIES];
-export const TEAM_SALES_RECIPIENTS = [TESTER];
+export const TEAM_SALES_RECIPIENTS = [ADAM, ANDRIES];
 
 /** Titan Moments Giveaway, 6fc1645b, and Photo Submission, cb8fdecb. */
-// export const CONSUMER_RECIPIENTS = [ANDRIES, FAHD];
-export const CONSUMER_RECIPIENTS = [TESTER];
+export const CONSUMER_RECIPIENTS = [ANDRIES, FAHD];
 
 /** Listed on both consumer forms; no longer a resolvable user. */
 export const CONSUMER_UNRESOLVED = ["68320474"];

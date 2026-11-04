@@ -23,13 +23,17 @@ const ANDRIES = "andries@titanbattlegear.com";
 const FAHD = "fahd@titanbattlegear.com";
 
 /** Team Discount Form, 7d807dfc. notifyContactOwner: false. */
-export const DISCOUNT_RECIPIENTS = [ADAM, ANDRIES];
+// export const DISCOUNT_RECIPIENTS = [ADAM, ANDRIES];
+export const DISCOUNT_RECIPIENTS = [FAHD];
 
 /** Team Custom Sales Form, d7bcd3f3. notifyContactOwner: true. */
-export const TEAM_SALES_RECIPIENTS = [ADAM, ANDRIES];
+// export const TEAM_SALES_RECIPIENTS = [ADAM, ANDRIES];
+export const TEAM_SALES_RECIPIENTS = [FAHD];
 
 /** Titan Moments Giveaway, 6fc1645b, and Photo Submission, cb8fdecb. */
-export const CONSUMER_RECIPIENTS = [ANDRIES, FAHD];
+// export const CONSUMER_RECIPIENTS = [ANDRIES, FAHD];
+export const CONSUMER_RECIPIENTS = [FAHD];
 
 /** Listed on both consumer forms; no longer a resolvable user. */
-export const CONSUMER_UNRESOLVED = ["68320474"];
+// export const CONSUMER_UNRESOLVED = ["68320474"];
+export const CONSUMER_UNRESOLVED = ["FAHD"];

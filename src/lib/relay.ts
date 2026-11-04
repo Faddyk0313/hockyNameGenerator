@@ -88,7 +88,12 @@ export type FormConfig = {
   phoneDefault?: { callingCode: string; countryCode: string };
 };
 
-const DEFAULT_PHONE = { callingCode: "+1", countryCode: "CA" };
+// Twenty validates the composite with libphonenumber: it infers the country from the
+// number itself and rejects a primaryPhoneCountryCode that disagrees
+// (CONFLICTING_PHONE_COUNTRY_CODE). A 407 number is US, a 905 number is CA, and the forms
+// have no country selector -- so pinning either one 400s every submitter from the other
+// country. Sending the calling code alone lets Twenty infer the country and accept both.
+const DEFAULT_PHONE = { callingCode: "+1", countryCode: "" };
 
 /* ------------------------------------------------------------------ coercion */
 

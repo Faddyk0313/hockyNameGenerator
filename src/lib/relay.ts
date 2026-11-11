@@ -20,6 +20,7 @@ import { NextResponse } from "next/server";
 import { upsert, TwentyError } from "@/lib/twenty";
 import { selectValue, type FieldMap } from "@/lib/twenty-field-map";
 import { confirmUrlFor } from "@/lib/confirm-token";
+import { FILE_REF_PREFIX, attachFileToPerson, verifyFileRef } from "@/lib/twenty-files";
 import { sendEmail } from "@/lib/resend";
 import {
   notificationEmailHtml,
@@ -312,6 +313,52 @@ async function sendNotification(
   }
 }
 
+/* -------------------------------------------------------------------- files */
+
+type FileRef = { field: string; fileId: string; name: string };
+
+/**
+ * Files uploaded through `twenty-logo-upload` arrive as signed `twenty-file:` references in
+ * place of a URL. Split them out of the submission: they must not reach a link field (the link
+ * coercion would turn one into "https://twenty-file:..."), and they can only be attached once
+ * the Person exists. Uploads still going through hubspot-logo-upload arrive as plain URLs and
+ * are untouched.
+ */
+function splitFileRefs(props: Props, formName: string) {
+  const files: FileRef[] = [];
+  const rest: Props = {};
+  /** What the notification email shows for each file field, in place of the raw reference. */
+  const emailNotes: Props = {};
+  for (const [field, value] of Object.entries(props)) {
+    if (!value.startsWith(FILE_REF_PREFIX)) {
+      rest[field] = value;
+      continue;
+    }
+    const ref = verifyFileRef(value);
+    if (ref) {
+      files.push({ field, ...ref });
+      emailNotes[field] = `${ref.name} (attached to the contact in the CRM, Files tab)`;
+    } else {
+      // A forged or mangled reference. Keep the lead, drop the file, and say so.
+      console.warn(`[${formName}] rejected an unverifiable file reference on ${field}`);
+      emailNotes[field] = "(an uploaded file could not be verified and was not attached)";
+    }
+  }
+  return { files, rest, emailNotes };
+}
+
+/** Never throws: the Person is already saved, and a lost attachment must not lose the lead. */
+async function attachFiles(personId: string, files: FileRef[], formName: string) {
+  for (const f of files) {
+    try {
+      await attachFileToPerson(personId, f.fileId, f.name);
+      console.log(`[${formName}] attached ${f.field}`, { personId, fileId: f.fileId });
+    } catch (err) {
+      console.error(`[${formName}] attaching ${f.field} failed`, personId, f.fileId, (err as Error).message);
+    }
+  }
+}
+
 /** Dates arrive as HubSpot epoch ms; show a calendar date, not the raw number. */
 function formatForEmail(name: string, value: string) {
   if (/^\d{13}$/.test(value)) return toTwentyDate(value) ?? value;
@@ -349,9 +396,10 @@ export function createFormHandler(cfg: FormConfig) {
       return fail(400, "Invalid request body");
     }
 
-    const contact = clean(payload.contact);
+    const submittedContact = clean(payload.contact);
     const company = clean(payload.company);
-    if (!contact.email) return fail(400, "An email address is required");
+    if (!submittedContact.email) return fail(400, "An email address is required");
+    const { files, rest: contact, emailNotes } = splitFileRefs(submittedContact, cfg.formName);
 
     const formName = payload.formName || cfg.formName;
     // The theme sends the page it was submitted from; HubSpot's notification showed it.
@@ -426,6 +474,10 @@ export function createFormHandler(cfg: FormConfig) {
         created: person.created,
       });
 
+      // Uploaded logos, now that there is a Person to hang them on. Repeat submitters get the
+      // new file added alongside any earlier ones; nothing is replaced.
+      if (files.length) await attachFiles(person.id, files, cfg.formName);
+
       // Only on first capture. HubSpot's workflow had shouldReEnroll:false, so a repeat
       // submission from the same email did not re-send; awaited rather than detached because
       // a serverless function may be frozen the moment it responds.
@@ -447,7 +499,7 @@ export function createFormHandler(cfg: FormConfig) {
       if (cfg.notification) {
         await sendNotification(
           cfg.notification,
-          { contact, company, personId: person.id, pageUri },
+          { contact: { ...contact, ...emailNotes }, company, personId: person.id, pageUri },
           formName
         );
       }

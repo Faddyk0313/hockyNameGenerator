@@ -95,6 +95,41 @@ export type FormConfig = {
 // country. Sending the calling code alone lets Twenty infer the country and accept both.
 const DEFAULT_PHONE = { callingCode: "+1", countryCode: "" };
 
+/**
+ * Turn an error from Twenty into something a submitter can read and act on.
+ *
+ * Twenty reports validation and constraint failures in developer terms, naming the
+ * database index that was violated. Those strings reached the browser verbatim, so a
+ * resubmitted email produced "A duplicate entry was detected: unique constraint
+ * person.IDX_UNIQUE_87914cd3ce963115f8cb943e2ac was violated".
+ *
+ * Matching is on the stable parts -- the error code where Twenty sends one, the index
+ * name otherwise. Anything unrecognised falls back to the generic message rather than
+ * leaking the raw text, so a new Twenty error cannot surface as jargon.
+ */
+export function friendlyError(e: TwentyError): string {
+  const raw = `${e.message ?? ""} ${JSON.stringify(e.body ?? "")}`;
+  const has = (needle: string) => raw.toLowerCase().includes(needle.toLowerCase());
+
+  // person.emails carries a UNIQUE index; a soft-deleted row keeps its slot, so this
+  // also fires for an address that was deleted in the Twenty UI rather than destroyed.
+  if (has("IDX_UNIQUE_87914cd3ce963115f8cb943e2ac") || (has("duplicate") && has("person")))
+    return "We already have a submission from this email address. Our team will be in touch — no need to submit again.";
+
+  if (has("IDX_UNIQUE_2a32339058d0b6910b0834ddf81") || (has("duplicate") && has("company")))
+    return "This organization is already in our system. Our team will be in touch.";
+
+  if (has("CONFLICTING_PHONE_COUNTRY_CODE") || has("INVALID_PHONE_NUMBER"))
+    return "Please check the phone number and try again.";
+
+  if (has("INVALID_EMAIL") || (has("email") && has("invalid")))
+    return "Please check the email address and try again.";
+
+  if (has("duplicate")) return "We already have this submission on file.";
+
+  return "Could not save your submission";
+}
+
 /* ------------------------------------------------------------------ coercion */
 
 // TBG custom code: The forms have no country selector, so normalize Canadian/NANP input
@@ -423,11 +458,12 @@ export function createFormHandler(cfg: FormConfig) {
       );
     } catch (error) {
       const e = error as TwentyError;
+      // The full technical error goes to the server log, where it is useful. The browser
+      // gets a sentence a submitter can act on -- Twenty's 400s are raw database and
+      // validation errors ("unique constraint person.IDX_UNIQUE_87914... was violated")
+      // and were previously passed through verbatim.
       console.error(`[${cfg.formName}] failed`, e.status, e.message, JSON.stringify(e.body));
-      return fail(
-        e.status === 400 ? 400 : 502,
-        e.status === 400 ? e.message : "Could not save your submission"
-      );
+      return fail(e.status === 400 ? 400 : 502, friendlyError(e));
     }
   };
 }

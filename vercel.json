@@ -1,7 +1,7 @@
 {
   "headers": [
     {
-      "source": "/api/((?!hubspot-logo-upload).*)",
+      "source": "/api/((?!hubspot-logo-upload|twenty-logo-upload).*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Credentials",

@@ -13,6 +13,10 @@ import { signFileRef, uploadFileToTwenty } from "@/lib/twenty-files";
  *
  * Limits and origins are deliberately identical to hubspot-logo-upload, which retires once no
  * section points at it.
+ *
+ * vercel.json must keep excluding this path from its `/api/*` CORS wildcard. Without the
+ * exclusion, any origin not in ALLOWED_ORIGINS gets `Access-Control-Allow-Origin: *` and the
+ * allowlist below is moot (verified live 2026-11-11 before the exclusion was added).
  */
 
 // Vercel Hobby caps serverless request bodies at ~4.5MB. Must match MAX_UPLOAD_BYTES in the
